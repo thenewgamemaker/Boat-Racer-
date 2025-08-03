@@ -190,7 +190,7 @@
 <div class="power-up-indicator">
   <div class="power-up-icon shield" title="Shield">🛡️</div>
   <div class="power-up-icon slow" title="Slow Motion">🐌</div>
-  <div class="power-up-icon speed" title="Speed Boost">⚡</div>
+  <div class="power-up-icon speed" title="Health Boost">❤️</div>
 </div>
 
 <canvas id="gameCanvas"></canvas>
@@ -243,7 +243,15 @@
   let lastDifficultyIncrease = 0;
   let obstacleSpeed = 2.5;
   let maxObstacles = 3;
-  let powerUpSpawnChance = 0.008;
+  
+  // Power-up spawn settings
+  let powerUpSpawnChance = 0.006; // Reduced from 0.008
+  const powerUpTypeChances = {
+    shield: 0.4,  // 40% chance
+    slow: 0.4,    // 40% chance
+    speed: 0.2    // 20% chance (hearts)
+  };
+  
   let flashing = false;
   let flashTime = 0;
   let flashDuration = 300;
@@ -255,11 +263,8 @@
   // Power-up states
   let hasShield = false;
   let slowMotionActive = false;
-  let speedBoostActive = false;
   let powerUpEndTime = {
-    shield: 0,
-    slow: 0,
-    speed: 0
+    slow: 0
   };
   const powerUpDuration = 5000;
 
@@ -285,7 +290,7 @@
 
   function resetBoat(){
     boat.x = canvas.width/2 - boat.w/2;
-    boat.y = canvas.height - boat.h - 30;
+    boat.y = canvas.height - boat.h - 100;  // Changed from -30 to -100 to move boat up
     boat.color = boatSkins[currentSkinIndex].color;
     boat.speed = boat.baseSpeed;
   }
@@ -325,7 +330,7 @@
           break;
         case 'speed':
           this.color = '#4cd137';
-          this.symbol = '⚡';
+          this.symbol = '❤️';
           break;
       }
     }
@@ -373,16 +378,18 @@
       switch(this.type) {
         case 'shield':
           hasShield = true;
-          powerUpEndTime.shield = now + powerUpDuration;
+          updatePowerUpIndicators();
           break;
         case 'slow':
           slowMotionActive = true;
           powerUpEndTime.slow = now + powerUpDuration;
           break;
         case 'speed':
-          speedBoostActive = true;
-          boat.speed = boat.baseSpeed * 1.5;
-          powerUpEndTime.speed = now + powerUpDuration;
+          // Add one heart (up to max)
+          if (lives < maxLives) {
+            lives++;
+            updateHearts();
+          }
           break;
       }
       
@@ -545,25 +552,16 @@
   function updatePowerUpIndicators() {
     const now = Date.now();
     
-    powerUpIndicators[0].classList.toggle('active', hasShield && now < powerUpEndTime.shield);
+    powerUpIndicators[0].classList.toggle('active', hasShield);
     powerUpIndicators[1].classList.toggle('active', slowMotionActive && now < powerUpEndTime.slow);
-    powerUpIndicators[2].classList.toggle('active', speedBoostActive && now < powerUpEndTime.speed);
+    powerUpIndicators[2].classList.toggle('active', false); // Health boost has no active state
   }
 
   function checkPowerUpExpiration() {
     const now = Date.now();
     
-    if(hasShield && now > powerUpEndTime.shield) {
-      hasShield = false;
-    }
-    
     if(slowMotionActive && now > powerUpEndTime.slow) {
       slowMotionActive = false;
-    }
-    
-    if(speedBoostActive && now > powerUpEndTime.speed) {
-      speedBoostActive = false;
-      boat.speed = boat.baseSpeed;
     }
     
     updatePowerUpIndicators();
@@ -571,10 +569,19 @@
 
   function spawnPowerUp() {
     if(Math.random() < powerUpSpawnChance && powerUps.length < 1) {
-      const types = ['shield', 'slow', 'speed'];
-      const type = types[Math.floor(Math.random() * types.length)];
-      const x = Math.random() * (canvas.width - 60) + 30;
+      // Determine which type of power-up to spawn
+      const rand = Math.random();
+      let type;
       
+      if (rand < powerUpTypeChances.shield) {
+        type = 'shield';
+      } else if (rand < powerUpTypeChances.shield + powerUpTypeChances.slow) {
+        type = 'slow';
+      } else {
+        type = 'speed'; // Heart power-up
+      }
+      
+      const x = Math.random() * (canvas.width - 60) + 30;
       powerUps.push(new PowerUp(type, x, -50));
     }
   }
@@ -618,12 +625,11 @@
     spawnInterval = 2500;
     obstacleSpeed = 2.5;
     maxObstacles = 3;
-    powerUpSpawnChance = 0.008;
+    powerUpSpawnChance = 0.006;
     pauseDuration = 0;
     
     hasShield = false;
     slowMotionActive = false;
-    speedBoostActive = false;
     boat.speed = boat.baseSpeed;
     updatePowerUpIndicators();
     
