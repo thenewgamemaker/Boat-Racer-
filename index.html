@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-<title>Boat Racer</title>
+<title>Boat Racer - Difficulty Levels</title>
 <style>
   html, body {
     margin:0; padding:0; overflow:hidden; 
     background: #0a192f;
-    font-family: Arial, sans-serif;
+    font-family: 'Arial Rounded MT Bold', 'Arial', sans-serif;
     user-select:none; touch-action:none;
     color:#00fff7;
   }
@@ -28,6 +28,7 @@
     font-weight: bold; font-size: 20px;
     text-shadow: 0 0 8px #00fff7;
     pointer-events: none;
+    z-index: 100;
   }
   #hearts {
     flex: 0 0 140px;
@@ -59,13 +60,14 @@
     border-radius: 7px;
     cursor: pointer;
     box-shadow: 0 0 10px #4AA1B0;
-    transition: background 0.3s ease;
+    transition: all 0.3s ease;
   }
   button:hover {
     background:#73c2e9;
     box-shadow: 0 0 14px #73c2e9;
+    transform: translateY(-3px);
   }
-  #menu, #skinsMenu, #restartMenu, #pauseMenu {
+  #menu, #skinsMenu, #restartMenu, #pauseMenu, #difficultyMenu {
     position: fixed;
     top:50%; left:50%;
     transform: translate(-50%, -50%);
@@ -78,7 +80,47 @@
     display: none;
     min-width: 280px;
     user-select:none;
+    z-index: 200;
   }
+  #difficultyMenu h1 {
+    margin-top: 0;
+    font-size: 2.5em;
+    text-shadow: 0 0 10px #00fff7;
+    margin-bottom: 30px;
+  }
+  .difficulty-option {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 20px 0;
+    padding: 15px;
+    border-radius: 10px;
+    background: rgba(0, 100, 150, 0.3);
+    transition: all 0.3s ease;
+    cursor: pointer;
+  }
+  .difficulty-option:hover {
+    background: rgba(0, 150, 200, 0.4);
+    transform: scale(1.05);
+  }
+  .difficulty-option.selected {
+    background: rgba(0, 200, 255, 0.4);
+    box-shadow: 0 0 15px #00fff7;
+    transform: scale(1.05);
+  }
+  .difficulty-title {
+    font-size: 1.8em;
+    font-weight: bold;
+    margin-bottom: 10px;
+    text-shadow: 0 0 8px currentColor;
+  }
+  .difficulty-description {
+    font-size: 0.9em;
+    max-width: 300px;
+    color: #aaf;
+  }
+  .difficulty-easy .difficulty-title { color: #7cff7c; }
+  .difficulty-hard .difficulty-title { color: #ff6b6b; }
   #skinsMenu button.skin-btn {
     margin: 5px;
     width: 50px; height: 50px;
@@ -147,6 +189,21 @@
   .power-up-icon.shield { background: rgba(0, 200, 255, 0.7); }
   .power-up-icon.slow { background: rgba(255, 100, 0, 0.7); }
   .power-up-icon.speed { background: rgba(0, 255, 100, 0.7); }
+  #difficultyIndicator {
+    position: fixed;
+    top: 70px;
+    right: 20px;
+    padding: 5px 15px;
+    border-radius: 20px;
+    font-weight: bold;
+    font-size: 14px;
+    background: rgba(0, 0, 0, 0.5);
+    box-shadow: 0 0 8px currentColor;
+    z-index: 100;
+    display: none;
+  }
+  #difficultyIndicator.easy { color: #7cff7c; }
+  #difficultyIndicator.hard { color: #ff6b6b; }
 </style>
 </head>
 <body>
@@ -157,10 +214,25 @@
   <div id="highScore">High Score: 0s</div>
 </div>
 
+<div id="difficultyIndicator"></div>
+
 <div id="menu">
   <h1>Boat Racer</h1>
   <button id="playBtn">Play</button><br/>
   <button id="skinsBtn">Skins</button>
+</div>
+
+<div id="difficultyMenu">
+  <h1>Select Difficulty</h1>
+  <div class="difficulty-option difficulty-easy" data-difficulty="easy">
+    <div class="difficulty-title">Easy Mode</div>
+    <div class="difficulty-description">Gentle pace, fewer obstacles - perfect for beginners</div>
+  </div>
+  <div class="difficulty-option difficulty-hard" data-difficulty="hard">
+    <div class="difficulty-title">Hard Mode</div>
+    <div class="difficulty-description">High speed, more obstacles - for the true daredevils!</div>
+  </div>
+  <button id="startGameBtn">Start Game</button>
 </div>
 
 <div id="skinsMenu">
@@ -228,6 +300,10 @@
   const continueBtn = document.getElementById('continueBtn');
   const pauseToMenuBtn = document.getElementById('pauseToMenuBtn');
   const powerUpIndicators = document.querySelectorAll('.power-up-icon');
+  const difficultyMenu = document.getElementById('difficultyMenu');
+  const startGameBtn = document.getElementById('startGameBtn');
+  const difficultyOptions = document.querySelectorAll('.difficulty-option');
+  const difficultyIndicator = document.getElementById('difficultyIndicator');
 
   // Game state
   let lives = 3;
@@ -243,6 +319,7 @@
   let lastDifficultyIncrease = 0;
   let obstacleSpeed = 2.5;
   let maxObstacles = 3;
+  let difficulty = 'easy'; // Default difficulty
   
   // Power-up spawn settings
   let powerUpSpawnChance = 0.006; // Reduced from 0.008
@@ -622,10 +699,26 @@
     powerUps = [];
     lastSpawn = 0;
     lastDifficultyIncrease = 0;
-    spawnInterval = 2500;
-    obstacleSpeed = 2.5;
-    maxObstacles = 3;
-    powerUpSpawnChance = 0.006;
+    
+    // Apply difficulty settings
+    if (difficulty === 'hard') {
+      spawnInterval = 1800;
+      obstacleSpeed = 4.0;
+      maxObstacles = 5;
+      powerUpSpawnChance = 0.008;
+      difficultyIndicator.textContent = "HARD MODE";
+      difficultyIndicator.className = "hard";
+    } else { // easy
+      spawnInterval = 2500;
+      obstacleSpeed = 2.5;
+      maxObstacles = 3;
+      powerUpSpawnChance = 0.006;
+      difficultyIndicator.textContent = "EASY MODE";
+      difficultyIndicator.className = "easy";
+    }
+    
+    difficultyIndicator.style.display = 'block';
+    
     pauseDuration = 0;
     
     hasShield = false;
@@ -736,31 +829,53 @@
 
   function showMainMenu(){
     menu.style.display = 'block';
+    difficultyMenu.style.display = 'none';
     skinsMenu.style.display = 'none';
     restartMenu.style.display = 'none';
     pauseMenu.style.display = 'none';
     canvas.style.display = 'none';
     flashOverlay.style.display = 'none';
     pauseBtn.style.display = 'none';
+    difficultyIndicator.style.display = 'none';
   }
   
   function showSkinsMenu(){
     menu.style.display = 'none';
+    difficultyMenu.style.display = 'none';
     skinsMenu.style.display = 'block';
     restartMenu.style.display = 'none';
     pauseMenu.style.display = 'none';
     canvas.style.display = 'none';
     pauseBtn.style.display = 'none';
+    difficultyIndicator.style.display = 'none';
+  }
+  
+  function showDifficultyMenu(){
+    menu.style.display = 'none';
+    difficultyMenu.style.display = 'block';
+    skinsMenu.style.display = 'none';
+    restartMenu.style.display = 'none';
+    pauseMenu.style.display = 'none';
+    canvas.style.display = 'none';
+    pauseBtn.style.display = 'none';
+    difficultyIndicator.style.display = 'none';
+    
+    // Reset selection
+    difficultyOptions.forEach(opt => opt.classList.remove('selected'));
+    difficultyOptions[0].classList.add('selected');
+    difficulty = 'easy';
   }
   
   function showRestartMenu(){
     menu.style.display = 'none';
+    difficultyMenu.style.display = 'none';
     skinsMenu.style.display = 'none';
     restartMenu.style.display = 'block';
     pauseMenu.style.display = 'none';
     canvas.style.display = 'none';
     flashOverlay.style.display = 'none';
     pauseBtn.style.display = 'none';
+    difficultyIndicator.style.display = 'none';
 
     const elapsed = Math.floor((Date.now()-startTime - pauseDuration)/1000);
     finalScoreP.textContent = `Your Time: ${elapsed}s`;
@@ -769,11 +884,13 @@
   
   function showGameCanvas(){
     menu.style.display = 'none';
+    difficultyMenu.style.display = 'none';
     skinsMenu.style.display = 'none';
     restartMenu.style.display = 'none';
     pauseMenu.style.display = 'none';
     canvas.style.display = 'block';
     pauseBtn.style.display = 'block';
+    difficultyIndicator.style.display = 'block';
   }
 
   function initSkinButtons(){
@@ -798,6 +915,18 @@
 
   // Button event listeners
   playBtn.addEventListener('click', () => {
+    showDifficultyMenu();
+  });
+
+  difficultyOptions.forEach(option => {
+    option.addEventListener('click', () => {
+      difficultyOptions.forEach(opt => opt.classList.remove('selected'));
+      option.classList.add('selected');
+      difficulty = option.dataset.difficulty;
+    });
+  });
+
+  startGameBtn.addEventListener('click', () => {
     resetGame();
     showGameCanvas();
   });
