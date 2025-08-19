@@ -11,6 +11,12 @@
     font-family: 'Arial Rounded MT Bold', 'Arial', sans-serif;
     user-select:none; touch-action:none;
     color:#00fff7;
+    height: 100%;
+  }
+  body, #mainContent {
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
   }
   body::before {
     content: "";
@@ -145,7 +151,7 @@
   }
   #pauseBtn {
     position: fixed;
-    bottom: 20px;
+    bottom: 80px;
     right: 20px;
     width: 60px;
     height: 60px;
@@ -165,7 +171,7 @@
   }
   .power-up-indicator {
     position: fixed;
-    bottom: 20px;
+    bottom: 80px;
     left: 20px;
     display: flex;
     gap: 10px;
@@ -204,10 +210,23 @@
   }
   #difficultyIndicator.easy { color: #7cff7c; }
   #difficultyIndicator.hard { color: #ff6b6b; }
+  #adBanner {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 60px;
+    background: #191919;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 5000;
+    box-shadow: 0 -2px 16px #000a;
+  }
 </style>
 </head>
 <body>
-
+<div id="mainContent">
 <div id="info">
   <div id="hearts"></div>
   <div id="time">Time: 0s</div>
@@ -266,20 +285,36 @@
 </div>
 
 <canvas id="gameCanvas"></canvas>
+</div>
+
+<!-- Ad Banner along the bottom -->
+<div id="adBanner">
+  <script type="text/javascript">
+    atOptions = {
+      'key' : 'd8c18047f4719cbcbd612bf296c3aa34',
+      'format' : 'iframe',
+      'height' : 50,
+      'width' : 320,
+      'params' : {}
+    };
+  </script>
+  <script type="text/javascript" src="//www.highperformanceformat.com/d8c18047f4719cbcbd612bf296c3aa34/invoke.js"></script>
+</div>
 
 <script>
 (() => {
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
-  
+
   function resize(){
+    const adBanner = document.getElementById('adBanner');
+    const adHeight = adBanner ? adBanner.offsetHeight : 0;
     canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+    canvas.height = window.innerHeight - adHeight;
   }
   resize();
   window.addEventListener('resize', resize);
 
-  // DOM elements
   const infoTime = document.getElementById('time');
   const infoHighScore = document.getElementById('highScore');
   const heartsContainer = document.getElementById('hearts');
@@ -305,7 +340,6 @@
   const difficultyOptions = document.querySelectorAll('.difficulty-option');
   const difficultyIndicator = document.getElementById('difficultyIndicator');
 
-  // Game state
   let lives = 3;
   const maxLives = 3;
   let distance = 0;
@@ -319,16 +353,9 @@
   let lastDifficultyIncrease = 0;
   let obstacleSpeed = 2.5;
   let maxObstacles = 3;
-  let difficulty = 'easy'; // Default difficulty
-  
-  // Power-up spawn settings
-  let powerUpSpawnChance = 0.006; // Reduced from 0.008
-  const powerUpTypeChances = {
-    shield: 0.4,  // 40% chance
-    slow: 0.4,    // 40% chance
-    speed: 0.2    // 20% chance (hearts)
-  };
-  
+  let difficulty = 'easy';
+  let powerUpSpawnChance = 0.006;
+  const powerUpTypeChances = { shield: 0.4, slow: 0.4, speed: 0.2 };
   let flashing = false;
   let flashTime = 0;
   let flashDuration = 300;
@@ -337,15 +364,11 @@
   let pauseTime = 0;
   let pauseDuration = 0;
 
-  // Power-up states
   let hasShield = false;
   let slowMotionActive = false;
-  let powerUpEndTime = {
-    slow: 0
-  };
+  let powerUpEndTime = { slow: 0 };
   const powerUpDuration = 5000;
 
-  // Boat settings and skins
   const boatSkins = [
     {color: '#E63946', name: 'Red'},
     {color: '#457B9D', name: 'Blue'},
@@ -367,16 +390,38 @@
 
   function resetBoat(){
     boat.x = canvas.width/2 - boat.w/2;
-    boat.y = canvas.height - boat.h - 100;  // Changed from -30 to -100 to move boat up
+    boat.y = canvas.height - boat.h - 100;
     boat.color = boatSkins[currentSkinIndex].color;
     boat.speed = boat.baseSpeed;
   }
 
-  // Touch control
-  let touchX = null;
-  canvas.addEventListener('touchstart', e => { touchX = e.touches[0].clientX; }, {passive:false});
-  canvas.addEventListener('touchmove', e => { e.preventDefault(); touchX = e.touches[0].clientX; }, {passive:false});
-  canvas.addEventListener('touchend', () => { touchX = null; });
+  // Touch input with dragging fix
+  let dragging = false;
+  let touchOffsetX = 0;
+
+  canvas.addEventListener("touchstart", e => {
+    const touch = e.touches[0];
+    if (
+      touch.clientX >= boat.x &&
+      touch.clientX <= boat.x + boat.w &&
+      touch.clientY >= boat.y &&
+      touch.clientY <= boat.y + boat.h
+    ) {
+      dragging = true;
+      touchOffsetX = touch.clientX - boat.x;
+    }
+  }, { passive: false });
+
+  canvas.addEventListener("touchmove", e => {
+    if (!dragging) return;
+    const touch = e.touches[0];
+    boat.x = touch.clientX - touchOffsetX;
+    boat.x = Math.min(Math.max(0, boat.x), canvas.width - boat.w);
+  }, { passive: false });
+
+  canvas.addEventListener("touchend", () => {
+    dragging = false;
+  });
 
   // Keyboard control fallback
   let keys = {};
@@ -386,7 +431,7 @@
   });
   window.addEventListener('keyup', e => { keys[e.key] = false; });
 
-  // Power-up class
+  // Classes for PowerUp and Obstacle
   class PowerUp {
     constructor(type, x, y) {
       this.type = type;
@@ -395,7 +440,6 @@
       this.size = 30;
       this.speed = 2;
       this.collected = false;
-      
       switch(type) {
         case 'shield':
           this.color = '#00a8ff';
@@ -419,23 +463,19 @@
     draw() {
       ctx.save();
       ctx.translate(this.x, this.y);
-      
       ctx.beginPath();
       ctx.arc(0, 0, this.size/2, 0, Math.PI * 2);
       ctx.fillStyle = this.color;
       ctx.fill();
-      
       ctx.beginPath();
       ctx.arc(0, 0, this.size/2 - 5, 0, Math.PI * 2);
       ctx.fillStyle = 'white';
       ctx.fill();
-      
       ctx.font = '20px Arial';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillStyle = this.color;
       ctx.fillText(this.symbol, 0, 0);
-      
       ctx.restore();
     }
     
@@ -451,7 +491,6 @@
     activate() {
       this.collected = true;
       const now = Date.now();
-      
       switch(this.type) {
         case 'shield':
           hasShield = true;
@@ -462,19 +501,16 @@
           powerUpEndTime.slow = now + powerUpDuration;
           break;
         case 'speed':
-          // Add one heart (up to max)
           if (lives < maxLives) {
             lives++;
             updateHearts();
           }
           break;
       }
-      
       updatePowerUpIndicators();
     }
   }
 
-  // Obstacle class
   class Obstacle {
     constructor(x, y, speed){
       this.x = x;
@@ -487,13 +523,9 @@
       this.color = colors[Math.floor(Math.random()*colors.length)];
       this.angle = 0;
       this.rotationSpeed = (Math.random() - 0.5) * 0.05;
-      
-      this.movementPattern = Math.random() > 0.7 ? 
-        (Math.random() > 0.5 ? 'zigzag' : 'following') : 'normal';
-      
+      this.movementPattern = Math.random() > 0.7 ? (Math.random() > 0.5 ? 'zigzag' : 'following') : 'normal';
       this.zigzagSpeed = Math.random() * 2 + 1;
       this.zigzagDirection = Math.random() > 0.5 ? 1 : -1;
-      
       this.followSpeed = Math.random() * 0.5 + 0.5;
       this.followDelay = Math.random() * 1000 + 500;
       this.followStartTime = Date.now() + this.followDelay;
@@ -501,10 +533,8 @@
     
     update(){
       const effectiveSpeed = slowMotionActive ? this.speed * 0.3 : this.speed;
-      
       this.y += effectiveSpeed;
       this.angle += this.rotationSpeed;
-      
       switch(this.movementPattern) {
         case 'zigzag':
           this.x += this.zigzagSpeed * this.zigzagDirection;
@@ -512,7 +542,6 @@
             this.zigzagDirection *= -1;
           }
           break;
-          
         case 'following':
           if(Date.now() > this.followStartTime) {
             const dx = boat.x + boat.w/2 - this.x;
@@ -542,7 +571,6 @@
         ctx.closePath();
         ctx.fill();
       }
-      
       if(this.movementPattern !== 'normal') {
         ctx.beginPath();
         ctx.arc(0, 0, this.size/2 + 5, 0, Math.PI * 2);
@@ -550,7 +578,6 @@
         ctx.lineWidth = 2;
         ctx.stroke();
       }
-      
       ctx.restore();
     }
     
@@ -573,7 +600,6 @@
     ctx.translate(boat.x + boat.w/2, boat.y + boat.h/2);
     const angle = Math.sin(Date.now()/300) * 0.1;
     ctx.rotate(angle);
-    
     if(hasShield) {
       ctx.beginPath();
       ctx.arc(0, 0, Math.max(boat.w, boat.h)/2 + 10, 0, Math.PI * 2);
@@ -583,7 +609,6 @@
       ctx.stroke();
       ctx.setLineDash([]);
     }
-    
     ctx.fillStyle = boat.color;
     ctx.beginPath();
     ctx.moveTo(-boat.w/2, boat.h/2);
@@ -628,36 +653,26 @@
 
   function updatePowerUpIndicators() {
     const now = Date.now();
-    
     powerUpIndicators[0].classList.toggle('active', hasShield);
     powerUpIndicators[1].classList.toggle('active', slowMotionActive && now < powerUpEndTime.slow);
-    powerUpIndicators[2].classList.toggle('active', false); // Health boost has no active state
+    powerUpIndicators[2].classList.toggle('active', false);
   }
 
   function checkPowerUpExpiration() {
     const now = Date.now();
-    
     if(slowMotionActive && now > powerUpEndTime.slow) {
       slowMotionActive = false;
     }
-    
     updatePowerUpIndicators();
   }
 
   function spawnPowerUp() {
     if(Math.random() < powerUpSpawnChance && powerUps.length < 1) {
-      // Determine which type of power-up to spawn
       const rand = Math.random();
       let type;
-      
-      if (rand < powerUpTypeChances.shield) {
-        type = 'shield';
-      } else if (rand < powerUpTypeChances.shield + powerUpTypeChances.slow) {
-        type = 'slow';
-      } else {
-        type = 'speed'; // Heart power-up
-      }
-      
+      if (rand < powerUpTypeChances.shield) type = 'shield';
+      else if (rand < powerUpTypeChances.shield + powerUpTypeChances.slow) type = 'slow';
+      else type = 'speed';
       const x = Math.random() * (canvas.width - 60) + 30;
       powerUps.push(new PowerUp(type, x, -50));
     }
@@ -672,9 +687,7 @@
 
   function togglePause(){
     if(gameOver) return;
-    
     gamePaused = !gamePaused;
-    
     if(gamePaused) {
       pauseTime = Date.now();
       cancelAnimationFrame(animationFrameId);
@@ -699,8 +712,6 @@
     powerUps = [];
     lastSpawn = 0;
     lastDifficultyIncrease = 0;
-    
-    // Apply difficulty settings
     if (difficulty === 'hard') {
       spawnInterval = 1800;
       obstacleSpeed = 4.0;
@@ -708,7 +719,8 @@
       powerUpSpawnChance = 0.008;
       difficultyIndicator.textContent = "HARD MODE";
       difficultyIndicator.className = "hard";
-    } else { // easy
+    }
+    else {
       spawnInterval = 2500;
       obstacleSpeed = 2.5;
       maxObstacles = 3;
@@ -716,16 +728,12 @@
       difficultyIndicator.textContent = "EASY MODE";
       difficultyIndicator.className = "easy";
     }
-    
     difficultyIndicator.style.display = 'block';
-    
     pauseDuration = 0;
-    
     hasShield = false;
     slowMotionActive = false;
     boat.speed = boat.baseSpeed;
     updatePowerUpIndicators();
-    
     resetBoat();
     updateHearts();
     updateInfo();
@@ -749,21 +757,16 @@
 
   function update(){
     if(gameOver || gamePaused) return;
-
     const now = Date.now();
-
     if(now - lastSpawn > spawnInterval && obstacles.length < maxObstacles){
       lastSpawn = now;
       spawnObstacle();
     }
-    
     spawnPowerUp();
-
     if(now - lastDifficultyIncrease > difficultyIncreaseInterval){
       lastDifficultyIncrease = now;
       increaseDifficulty();
     }
-
     obstacles.forEach((o, i) => {
       o.update();
       if(o.y - o.size/2 > canvas.height){
@@ -771,7 +774,6 @@
         distance += 100;
       } else if(isCollide(boat, o.getBounds())){
         obstacles.splice(i, 1);
-        
         if(hasShield) {
           hasShield = false;
           updatePowerUpIndicators();
@@ -787,7 +789,6 @@
         }
       }
     });
-    
     powerUps.forEach((p, i) => {
       p.update();
       if(p.y - p.size/2 > canvas.height) {
@@ -797,19 +798,13 @@
         powerUps.splice(i, 1);
       }
     });
-    
     checkPowerUpExpiration();
-
-    if(touchX !== null){
-      const targetX = touchX - boat.w/2;
-      const dx = targetX - boat.x;
-      boat.x += Math.sign(dx) * Math.min(Math.abs(dx), boat.speed);
-    } else {
+    // Move boat by keyboard if not dragging
+    if (!dragging) {
       if(keys['ArrowLeft'] || keys['a']) boat.x -= boat.speed;
       if(keys['ArrowRight'] || keys['d']) boat.x += boat.speed;
+      boat.x = Math.min(Math.max(0, boat.x), canvas.width - boat.w);
     }
-    boat.x = Math.min(Math.max(0, boat.x), canvas.width - boat.w);
-
     updateFlash();
     updateInfo();
   }
@@ -860,7 +855,6 @@
     pauseBtn.style.display = 'none';
     difficultyIndicator.style.display = 'none';
     
-    // Reset selection
     difficultyOptions.forEach(opt => opt.classList.remove('selected'));
     difficultyOptions[0].classList.add('selected');
     difficulty = 'easy';
@@ -913,7 +907,6 @@
     });
   }
 
-  // Button event listeners
   playBtn.addEventListener('click', () => {
     showDifficultyMenu();
   });
@@ -958,13 +951,11 @@
     showMainMenu();
   });
 
-  // Load high score from localStorage
   if(localStorage.getItem('boatRacerHighScore')) {
     highScore = parseInt(localStorage.getItem('boatRacerHighScore'));
     infoHighScore.textContent = `High Score: ${highScore}s`;
   }
 
-  // Start showing main menu initially
   showMainMenu();
 
 })();
