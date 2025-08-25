@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-<title>Boat Racer - Difficulty Levels</title>
+<title>Boat Racer - Quests Update</title>
 <style>
   html, body {
     margin:0; padding:0; overflow:hidden; 
@@ -73,7 +73,7 @@
     box-shadow: 0 0 14px #73c2e9;
     transform: translateY(-3px);
   }
-  #menu, #skinsMenu, #restartMenu, #pauseMenu, #difficultyMenu {
+  #menu, #skinsMenu, #restartMenu, #pauseMenu, #difficultyMenu, #questsMenu {
     position: fixed;
     top:50%; left:50%;
     transform: translate(-50%, -50%);
@@ -88,7 +88,7 @@
     user-select:none;
     z-index: 200;
   }
-  #difficultyMenu h1 {
+  #difficultyMenu h1, #questsMenu h2 {
     margin-top: 0;
     font-size: 2.5em;
     text-shadow: 0 0 10px #00fff7;
@@ -135,6 +135,23 @@
   }
   #skinsMenu button.skin-btn.selected {
     box-shadow: 0 0 15px 3px #00fff7;
+  }
+  #questsMenu {
+    min-width: 310px;
+    padding: 30px 32px;
+  }
+  .quest {
+    margin: 16px 0;
+    padding: 10px;
+    border-radius: 10px;
+    background: rgba(0,100,150,0.3);
+    font-size: 1.1em;
+    box-shadow: 0 0 8px #0ff5;
+    transition: all 0.3s;
+  }
+  .quest.completed {
+    background: rgba(0,200,100,0.28);
+    filter: drop-shadow(0 0 8px #7cff7c);
   }
   canvas {
     display:block; margin:0 auto;
@@ -227,64 +244,60 @@
 </head>
 <body>
 <div id="mainContent">
-<div id="info">
-  <div id="hearts"></div>
-  <div id="time">Time: 0s</div>
-  <div id="highScore">High Score: 0s</div>
-</div>
-
-<div id="difficultyIndicator"></div>
-
-<div id="menu">
-  <h1>Boat Racer</h1>
-  <button id="playBtn">Play</button><br/>
-  <button id="skinsBtn">Skins</button>
-</div>
-
-<div id="difficultyMenu">
-  <h1>Select Difficulty</h1>
-  <div class="difficulty-option difficulty-easy" data-difficulty="easy">
-    <div class="difficulty-title">Easy Mode</div>
-    <div class="difficulty-description">Gentle pace, fewer obstacles - perfect for beginners</div>
+  <div id="info">
+    <div id="hearts"></div>
+    <div id="time">Time: 0s</div>
+    <div id="highScore">High Score: 0s</div>
   </div>
-  <div class="difficulty-option difficulty-hard" data-difficulty="hard">
-    <div class="difficulty-title">Hard Mode</div>
-    <div class="difficulty-description">High speed, more obstacles - for the true daredevils!</div>
+  <div id="difficultyIndicator"></div>
+  <div id="menu">
+    <h1>Boat Racer</h1>
+    <button id="playBtn">Play</button><br/>
+    <button id="skinsBtn">Skins</button><br/>
+    <button id="questsBtn">Quests</button><br/>
   </div>
-  <button id="startGameBtn">Start Game</button>
-</div>
-
-<div id="skinsMenu">
-  <h2>Select Your Boat Skin</h2>
-  <div id="skinOptions"></div>
-  <button id="skinsBackBtn">Back</button>
-</div>
-
-<div id="restartMenu">
-  <h1>Game Over!</h1>
-  <p id="finalScore">Your Time: 0s</p>
-  <p id="bestScore">Best Time: 0s</p>
-  <button id="restartBtn">Restart</button><br/>
-  <button id="backToMenuBtn">Main Menu</button>
-</div>
-
-<div id="pauseMenu">
-  <h1>Game Paused</h1>
-  <button id="continueBtn">Continue</button><br/>
-  <button id="pauseToMenuBtn">Main Menu</button>
-</div>
-
-<div id="flashOverlay"></div>
-
-<button id="pauseBtn">⏸</button>
-
-<div class="power-up-indicator">
-  <div class="power-up-icon shield" title="Shield">🛡️</div>
-  <div class="power-up-icon slow" title="Slow Motion">🐌</div>
-  <div class="power-up-icon speed" title="Health Boost">❤️</div>
-</div>
-
-<canvas id="gameCanvas"></canvas>
+  <div id="difficultyMenu">
+    <h1>Select Difficulty</h1>
+    <div class="difficulty-option difficulty-easy" data-difficulty="easy">
+      <div class="difficulty-title">Easy Mode</div>
+      <div class="difficulty-description">Gentle pace, fewer obstacles - perfect for beginners</div>
+    </div>
+    <div class="difficulty-option difficulty-hard" data-difficulty="hard">
+      <div class="difficulty-title">Hard Mode</div>
+      <div class="difficulty-description">High speed, more obstacles - for the true daredevils!</div>
+    </div>
+    <button id="startGameBtn">Start Game</button>
+  </div>
+  <div id="skinsMenu">
+    <h2>Select Your Boat Skin</h2>
+    <div id="skinOptions"></div>
+    <button id="skinsBackBtn">Back</button>
+  </div>
+  <div id="questsMenu">
+    <h2>Quests</h2>
+    <div id="questList"></div>
+    <button id="questsBackBtn">Back</button>
+  </div>
+  <div id="restartMenu">
+    <h1>Game Over!</h1>
+    <p id="finalScore">Your Time: 0s</p>
+    <p id="bestScore">Best Time: 0s</p>
+    <button id="restartBtn">Restart</button><br/>
+    <button id="backToMenuBtn">Main Menu</button>
+  </div>
+  <div id="pauseMenu">
+    <h1>Game Paused</h1>
+    <button id="continueBtn">Continue</button><br/>
+    <button id="pauseToMenuBtn">Main Menu</button>
+  </div>
+  <div id="flashOverlay"></div>
+  <button id="pauseBtn">⏸</button>
+  <div class="power-up-indicator">
+    <div class="power-up-icon shield" title="Shield">🛡️</div>
+    <div class="power-up-icon slow" title="Slow Motion">🐌</div>
+    <div class="power-up-icon speed" title="Health Boost">❤️</div>
+  </div>
+  <canvas id="gameCanvas"></canvas>
 </div>
 
 <!-- Ad Banner along the bottom -->
@@ -305,7 +318,6 @@
 (() => {
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
-
   function resize(){
     const adBanner = document.getElementById('adBanner');
     const adHeight = adBanner ? adBanner.offsetHeight : 0;
@@ -340,6 +352,12 @@
   const difficultyOptions = document.querySelectorAll('.difficulty-option');
   const difficultyIndicator = document.getElementById('difficultyIndicator');
 
+  // QUEST System DOM
+  const questsBtn = document.getElementById('questsBtn');
+  const questsMenu = document.getElementById('questsMenu');
+  const questsBackBtn = document.getElementById('questsBackBtn');
+  const questList = document.getElementById('questList');
+
   let lives = 3;
   const maxLives = 3;
   let distance = 0;
@@ -363,13 +381,13 @@
   let gamePaused = false;
   let pauseTime = 0;
   let pauseDuration = 0;
-
   let hasShield = false;
   let slowMotionActive = false;
   let powerUpEndTime = { slow: 0 };
   const powerUpDuration = 5000;
 
-  const boatSkins = [
+  // Boat Skins (can be plain color or gradient type)
+  let boatSkins = [
     {color: '#E63946', name: 'Red'},
     {color: '#457B9D', name: 'Blue'},
     {color: '#2A9D8F', name: 'Teal'},
@@ -377,6 +395,13 @@
     {color: '#6A4C93', name: 'Purple'}
   ];
   let currentSkinIndex = 0;
+
+  // Load saved skins
+  if(localStorage.getItem("boatRacerSkins")){
+    let saved = JSON.parse(localStorage.getItem("boatRacerSkins"));
+    if(saved.length > boatSkins.length)
+      boatSkins = saved;
+  }
 
   const boat = {
     w: 60,
@@ -395,6 +420,79 @@
     boat.speed = boat.baseSpeed;
   }
 
+  // QUEST definitions and storage
+  const quests = [
+    {
+      id: 'survive60',
+      description: "Survive 60s in one run",
+      progress: 0, // not needed for this type
+      goal: 60,
+      reward: { type: 'skin', color: '#7bbc97', name: 'Camo Boat' },
+      completed: false
+    },
+    {
+      id: 'powerup10',
+      description: "Collect 10 power-ups (lifetime)",
+      progress: 0,
+      goal: 10,
+      reward: { type: 'skin', color: '#39FF14', name: 'Neon Boat' },
+      completed: false
+    },
+    {
+      id: 'beatBest',
+      description: "Beat your best score by +30s",
+      progress: 0, // dummy, not used
+      goal: 1,
+      reward: { type: 'skin', rainbow:true, name: 'Rainbow Boat' },
+      completed: false
+    }
+  ];
+
+  // Load quest progress
+  let questProgress = JSON.parse(localStorage.getItem("boatRacerQuests") || "{}");
+  quests.forEach(q=>{
+    if(questProgress[q.id]) Object.assign(q, questProgress[q.id]);
+  });
+
+  function saveQuests(){
+    const data = {};
+    quests.forEach(q => data[q.id] = q);
+    localStorage.setItem("boatRacerQuests", JSON.stringify(data));
+  }
+  function saveSkins(){
+    localStorage.setItem("boatRacerSkins", JSON.stringify(boatSkins));
+  }
+
+  function renderQuests(){
+    questList.innerHTML = "";
+    quests.forEach(q=>{
+      const div = document.createElement('div');
+      div.className = `quest${q.completed ? ' completed' : ''}`;
+      let progText = q.completed ?
+        "✅ Completed!" :
+        (q.id==='survive60'||q.id==='beatBest' ? "Progress: -" : `Progress: ${q.progress}/${q.goal}`);
+      let rewardText = q.reward.name || 'Unknown';
+      div.innerHTML = `<b>${q.description}</b><br/>${progText}<br/>Reward: <i>${rewardText}</i>`;
+      questList.appendChild(div);
+    });
+  }
+  questsBtn.addEventListener("click", () => {
+    renderQuests();
+    showQuestsMenu();
+  });
+  questsBackBtn.addEventListener("click", showMainMenu);
+
+  function showQuestsMenu(){
+    menu.style.display = 'none';
+    questsMenu.style.display = 'block';
+    skinsMenu.style.display = 'none';
+    restartMenu.style.display = 'none';
+    pauseMenu.style.display = 'none';
+    canvas.style.display = 'none';
+    pauseBtn.style.display = 'none';
+    difficultyIndicator.style.display = 'none';
+  }
+
   // Touch input with dragging fix
   let dragging = false;
   let touchOffsetX = 0;
@@ -411,14 +509,12 @@
       touchOffsetX = touch.clientX - boat.x;
     }
   }, { passive: false });
-
   canvas.addEventListener("touchmove", e => {
     if (!dragging) return;
     const touch = e.touches[0];
     boat.x = touch.clientX - touchOffsetX;
     boat.x = Math.min(Math.max(0, boat.x), canvas.width - boat.w);
   }, { passive: false });
-
   canvas.addEventListener("touchend", () => {
     dragging = false;
   });
@@ -455,11 +551,7 @@
           break;
       }
     }
-    
-    update() {
-      this.y += this.speed;
-    }
-    
+    update() { this.y += this.speed; }
     draw() {
       ctx.save();
       ctx.translate(this.x, this.y);
@@ -478,7 +570,6 @@
       ctx.fillText(this.symbol, 0, 0);
       ctx.restore();
     }
-    
     getBounds() {
       return {
         x: this.x - this.size/2,
@@ -487,7 +578,6 @@
         height: this.size
       };
     }
-    
     activate() {
       this.collected = true;
       const now = Date.now();
@@ -530,7 +620,6 @@
       this.followDelay = Math.random() * 1000 + 500;
       this.followStartTime = Date.now() + this.followDelay;
     }
-    
     update(){
       const effectiveSpeed = slowMotionActive ? this.speed * 0.3 : this.speed;
       this.y += effectiveSpeed;
@@ -550,7 +639,6 @@
           break;
       }
     }
-    
     draw(){
       ctx.fillStyle = this.color;
       ctx.save();
@@ -580,7 +668,6 @@
       }
       ctx.restore();
     }
-    
     getBounds(){
       return {
         x: this.x - this.size/2,
@@ -609,7 +696,19 @@
       ctx.stroke();
       ctx.setLineDash([]);
     }
-    ctx.fillStyle = boat.color;
+    // Rainbow boat drawing
+    if(boatSkins[currentSkinIndex].rainbow){
+      let grad = ctx.createLinearGradient(-boat.w/2, 0, boat.w/2, 0);
+      grad.addColorStop(0, "red");
+      grad.addColorStop(0.2, "orange");
+      grad.addColorStop(0.4, "yellow");
+      grad.addColorStop(0.6, "green");
+      grad.addColorStop(0.8, "blue");
+      grad.addColorStop(1, "purple");
+      ctx.fillStyle = grad;
+    } else {
+      ctx.fillStyle = boat.color;
+    }
     ctx.beginPath();
     ctx.moveTo(-boat.w/2, boat.h/2);
     ctx.lineTo(-boat.w/3, -boat.h/2);
@@ -637,27 +736,23 @@
       heartsContainer.appendChild(heart);
     }
   }
-
   function triggerFlash(){
     flashing = true;
     flashTime = Date.now();
     flashOverlay.style.display = 'block';
   }
-  
   function updateFlash(){
     if(flashing && Date.now() - flashTime > flashDuration){
       flashing = false;
       flashOverlay.style.display = 'none';
     }
   }
-
   function updatePowerUpIndicators() {
     const now = Date.now();
     powerUpIndicators[0].classList.toggle('active', hasShield);
     powerUpIndicators[1].classList.toggle('active', slowMotionActive && now < powerUpEndTime.slow);
     powerUpIndicators[2].classList.toggle('active', false);
   }
-
   function checkPowerUpExpiration() {
     const now = Date.now();
     if(slowMotionActive && now > powerUpEndTime.slow) {
@@ -665,7 +760,6 @@
     }
     updatePowerUpIndicators();
   }
-
   function spawnPowerUp() {
     if(Math.random() < powerUpSpawnChance && powerUps.length < 1) {
       const rand = Math.random();
@@ -677,7 +771,6 @@
       powerUps.push(new PowerUp(type, x, -50));
     }
   }
-
   function increaseDifficulty() {
     spawnInterval = Math.max(800, spawnInterval - 100);
     obstacleSpeed += 0.3;
@@ -685,16 +778,21 @@
     powerUpSpawnChance = Math.min(0.015, powerUpSpawnChance + 0.001);
   }
 
+  // PAUSE / RESUME fix for correct pause duration tracking & prevent negative time
   function togglePause(){
     if(gameOver) return;
-    gamePaused = !gamePaused;
-    if(gamePaused) {
+    if(!gamePaused) {
+      // Pausing now
       pauseTime = Date.now();
+      gamePaused = true;
       cancelAnimationFrame(animationFrameId);
       pauseMenu.style.display = 'block';
       pauseBtn.textContent = '▶';
     } else {
-      pauseDuration += Date.now() - pauseTime;
+      // Resuming now
+      pauseDuration += (Date.now() - pauseTime);
+      pauseTime = 0;
+      gamePaused = false;
       pauseMenu.style.display = 'none';
       pauseBtn.textContent = '⏸';
       loop();
@@ -733,15 +831,16 @@
     hasShield = false;
     slowMotionActive = false;
     boat.speed = boat.baseSpeed;
+    gamePaused = false; // Game starts unpaused
     updatePowerUpIndicators();
     resetBoat();
     updateHearts();
     updateInfo();
-    loop();
   }
 
   function updateInfo(){
-    const elapsed = Math.floor((Date.now()-startTime - pauseDuration)/1000);
+    let elapsed = Math.floor((Date.now() - startTime - pauseDuration) / 1000);
+    if(elapsed < 0) elapsed = 0; // Prevent negative time
     infoTime.textContent = `Time: ${elapsed}s`;
     if(elapsed > highScore) {
       highScore = elapsed;
@@ -796,6 +895,7 @@
       } else if(!p.collected && isCollide(boat, p.getBounds())) {
         p.activate();
         powerUps.splice(i, 1);
+        onPowerupCollected(); // QUEST PROGRESS
       }
     });
     checkPowerUpExpiration();
@@ -822,64 +922,68 @@
     if(!gameOver && !gamePaused) animationFrameId = requestAnimationFrame(loop);
   }
 
+  // === FIX: stop game loop on returning to menu to avoid background running ===
   function showMainMenu(){
+    gamePaused = true;                    // pause game loop
+    cancelAnimationFrame(animationFrameId);  // cancel animation loop
     menu.style.display = 'block';
     difficultyMenu.style.display = 'none';
     skinsMenu.style.display = 'none';
+    questsMenu.style.display = 'none';
     restartMenu.style.display = 'none';
     pauseMenu.style.display = 'none';
     canvas.style.display = 'none';
     flashOverlay.style.display = 'none';
     pauseBtn.style.display = 'none';
     difficultyIndicator.style.display = 'none';
+    pauseBtn.textContent = '⏸';          // reset pause button text
   }
-  
   function showSkinsMenu(){
     menu.style.display = 'none';
     difficultyMenu.style.display = 'none';
     skinsMenu.style.display = 'block';
+    questsMenu.style.display = 'none';
     restartMenu.style.display = 'none';
     pauseMenu.style.display = 'none';
     canvas.style.display = 'none';
     pauseBtn.style.display = 'none';
     difficultyIndicator.style.display = 'none';
   }
-  
   function showDifficultyMenu(){
     menu.style.display = 'none';
     difficultyMenu.style.display = 'block';
     skinsMenu.style.display = 'none';
+    questsMenu.style.display = 'none';
     restartMenu.style.display = 'none';
     pauseMenu.style.display = 'none';
     canvas.style.display = 'none';
     pauseBtn.style.display = 'none';
     difficultyIndicator.style.display = 'none';
-    
     difficultyOptions.forEach(opt => opt.classList.remove('selected'));
     difficultyOptions[0].classList.add('selected');
     difficulty = 'easy';
   }
-  
   function showRestartMenu(){
     menu.style.display = 'none';
     difficultyMenu.style.display = 'none';
     skinsMenu.style.display = 'none';
+    questsMenu.style.display = 'none';
     restartMenu.style.display = 'block';
     pauseMenu.style.display = 'none';
     canvas.style.display = 'none';
     flashOverlay.style.display = 'none';
     pauseBtn.style.display = 'none';
     difficultyIndicator.style.display = 'none';
-
     const elapsed = Math.floor((Date.now()-startTime - pauseDuration)/1000);
     finalScoreP.textContent = `Your Time: ${elapsed}s`;
     bestScoreP.textContent = `Best Time: ${highScore}s`;
+    checkQuestsAtEnd(elapsed); // Check quests at end of round!
   }
-  
   function showGameCanvas(){
     menu.style.display = 'none';
     difficultyMenu.style.display = 'none';
     skinsMenu.style.display = 'none';
+    questsMenu.style.display = 'none';
     restartMenu.style.display = 'none';
     pauseMenu.style.display = 'none';
     canvas.style.display = 'block';
@@ -892,15 +996,18 @@
     boatSkins.forEach((skin, idx) => {
       const btn = document.createElement('button');
       btn.classList.add('skin-btn');
-      btn.style.background = skin.color;
+      if(skin.rainbow){
+        btn.style.background="linear-gradient(90deg, red, orange, yellow, green, blue, purple)";
+      } else {
+        btn.style.background = skin.color;
+      }
       if(idx === currentSkinIndex) btn.classList.add('selected');
       btn.title = skin.name;
       btn.addEventListener('click', () => {
         currentSkinIndex = idx;
-        const btns = skinOptionsDiv.querySelectorAll('button');
-        btns.forEach(b => b.classList.remove('selected'));
+        skinOptionsDiv.querySelectorAll('button').forEach(b => b.classList.remove('selected'));
         btn.classList.add('selected');
-        boat.color = boatSkins[currentSkinIndex].color;
+        boat.color = skin.color;
         resetBoat();
       });
       skinOptionsDiv.appendChild(btn);
@@ -910,7 +1017,6 @@
   playBtn.addEventListener('click', () => {
     showDifficultyMenu();
   });
-
   difficultyOptions.forEach(option => {
     option.addEventListener('click', () => {
       difficultyOptions.forEach(opt => opt.classList.remove('selected'));
@@ -918,46 +1024,78 @@
       difficulty = option.dataset.difficulty;
     });
   });
-
   startGameBtn.addEventListener('click', () => {
     resetGame();
     showGameCanvas();
+    loop(); // Start the game loop immediately
   });
-
   skinsBtn.addEventListener('click', () => {
     initSkinButtons();
     showSkinsMenu();
   });
-
   skinsBackBtn.addEventListener('click', () => {
     showMainMenu();
   });
-
   restartBtn.addEventListener('click', () => {
     resetGame();
     showGameCanvas();
+    loop(); // Start the game loop immediately
   });
-
   backToMenuBtn.addEventListener('click', () => {
     showMainMenu();
   });
-
   pauseBtn.addEventListener('click', togglePause);
-
   continueBtn.addEventListener('click', togglePause);
-
   pauseToMenuBtn.addEventListener('click', () => {
     togglePause();
     showMainMenu();
+  });
+
+  // QUEST SYSTEM tracking and rewards
+  function checkQuestsAtEnd(elapsed){
+    quests.forEach(q=>{
+      if(q.id === 'survive60' && !q.completed && elapsed >= 60){
+        q.completed = true;
+        unlockSkin(q.reward);
+      }
+      if(q.id === 'beatBest' && !q.completed && elapsed >= highScore+30 && highScore>0){
+        q.completed = true;
+        unlockSkin(q.reward);
+      }
+    });
+    saveQuests();
+  }
+  function onPowerupCollected(){
+    const q = quests.find(q=>q.id==='powerup10');
+    if(!q.completed){
+      q.progress++;
+      if(q.progress >= q.goal){
+        q.completed = true;
+        unlockSkin(q.reward);
+      }
+      saveQuests();
+    }
+  }
+  function unlockSkin(reward){
+    alert(`🎉 Quest Complete! You unlocked: ${reward.name}`);
+    boatSkins.push({color: reward.color, name: reward.name, rainbow: reward.rainbow});
+    saveSkins();
+  }
+
+  // AUTO-PAUSE WHEN TAB OR APP BECOMES HIDDEN
+  document.addEventListener('visibilitychange', () => {
+    if(document.hidden){
+      if(!gamePaused && !gameOver){
+        togglePause();
+      }
+    }
   });
 
   if(localStorage.getItem('boatRacerHighScore')) {
     highScore = parseInt(localStorage.getItem('boatRacerHighScore'));
     infoHighScore.textContent = `High Score: ${highScore}s`;
   }
-
   showMainMenu();
-
 })();
 </script>
 </body>
