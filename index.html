@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-<title>Boat Racer - Quests Update</title>
+<title>Boat Racer - Enhanced Quests</title>
 <style>
   html, body {
     margin:0; padding:0; overflow:hidden; 
@@ -137,21 +137,65 @@
     box-shadow: 0 0 15px 3px #00fff7;
   }
   #questsMenu {
-    min-width: 310px;
+    min-width: 350px;
+    max-width: 450px;
+    max-height: 80vh;
     padding: 30px 32px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  #questList {
+    max-height: 60vh;
+    overflow-y: auto;
+    padding-right: 10px;
+    scrollbar-width: thin;
+    scrollbar-color: #00fff7 rgba(0,100,150,0.3);
+  }
+  #questList::-webkit-scrollbar {
+    width: 8px;
+  }
+  #questList::-webkit-scrollbar-track {
+    background: rgba(0,100,150,0.3);
+    border-radius: 10px;
+  }
+  #questList::-webkit-scrollbar-thumb {
+    background: #00fff7;
+    border-radius: 10px;
+  }
+  #questList::-webkit-scrollbar-thumb:hover {
+    background: #73c2e9;
   }
   .quest {
     margin: 16px 0;
-    padding: 10px;
+    padding: 15px;
     border-radius: 10px;
     background: rgba(0,100,150,0.3);
-    font-size: 1.1em;
+    font-size: 1.0em;
     box-shadow: 0 0 8px #0ff5;
     transition: all 0.3s;
+    border: 2px solid transparent;
   }
   .quest.completed {
     background: rgba(0,200,100,0.28);
     filter: drop-shadow(0 0 8px #7cff7c);
+    border-color: #7cff7c;
+  }
+  .quest-title {
+    font-weight: bold;
+    font-size: 1.1em;
+    margin-bottom: 8px;
+    color: #00fff7;
+  }
+  .quest-progress {
+    font-size: 0.9em;
+    color: #aaf;
+    margin-bottom: 5px;
+  }
+  .quest-reward {
+    font-size: 0.85em;
+    color: #ffa500;
+    font-style: italic;
   }
   canvas {
     display:block; margin:0 auto;
@@ -240,6 +284,43 @@
     z-index: 5000;
     box-shadow: 0 -2px 16px #000a;
   }
+  #questNotification {
+    position: fixed;
+    top: -100px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(45deg, #00fff7, #4AA1B0);
+    color: #0a192f;
+    padding: 15px 25px;
+    border-radius: 10px;
+    font-weight: bold;
+    font-size: 16px;
+    box-shadow: 0 0 20px #00fff7, inset 0 0 20px rgba(255,255,255,0.2);
+    z-index: 9999;
+    transition: all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    text-align: center;
+    min-width: 300px;
+    border: 2px solid #00fff7;
+  }
+  #questNotification.show {
+    top: 20px;
+  }
+  #questNotification::before {
+    content: "";
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    background: linear-gradient(45deg, #00fff7, #73c2e9, #4AA1B0, #00fff7);
+    border-radius: 10px;
+    z-index: -1;
+    animation: neonBorder 2s linear infinite;
+  }
+  @keyframes neonBorder {
+    0% { filter: hue-rotate(0deg); }
+    100% { filter: hue-rotate(360deg); }
+  }
 </style>
 </head>
 <body>
@@ -250,6 +331,7 @@
     <div id="highScore">High Score: 0s</div>
   </div>
   <div id="difficultyIndicator"></div>
+  <div id="questNotification"></div>
   <div id="menu">
     <h1>Boat Racer</h1>
     <button id="playBtn">Play</button><br/>
@@ -351,6 +433,7 @@
   const startGameBtn = document.getElementById('startGameBtn');
   const difficultyOptions = document.querySelectorAll('.difficulty-option');
   const difficultyIndicator = document.getElementById('difficultyIndicator');
+  const questNotification = document.getElementById('questNotification');
 
   // QUEST System DOM
   const questsBtn = document.getElementById('questsBtn');
@@ -386,20 +469,40 @@
   let powerUpEndTime = { slow: 0 };
   const powerUpDuration = 5000;
 
-  // Boat Skins (can be plain color or gradient type)
+  // Game statistics for quests
+  let gameStats = {
+    totalPowerUps: 0,
+    totalGamesPlayed: 0,
+    totalObstaclesAvoided: 0,
+    perfectRuns: 0, // no damage taken
+    longestSurvival: 0,
+    hardModeWins: 0,
+    shieldsUsed: 0
+  };
+
+  // Load game stats
+  if(localStorage.getItem("boatRacerStats")){
+    gameStats = {...gameStats, ...JSON.parse(localStorage.getItem("boatRacerStats"))};
+  }
+
+  function saveStats(){
+    localStorage.setItem("boatRacerStats", JSON.stringify(gameStats));
+  }
+
+  // Enhanced Boat Skins with different shapes and types
   let boatSkins = [
-    {color: '#E63946', name: 'Red'},
-    {color: '#457B9D', name: 'Blue'},
-    {color: '#2A9D8F', name: 'Teal'},
-    {color: '#F4A261', name: 'Orange'},
-    {color: '#6A4C93', name: 'Purple'}
+    {color: '#E63946', name: 'Classic Red', type: 'classic'},
+    {color: '#457B9D', name: 'Ocean Blue', type: 'classic'},
+    {color: '#2A9D8F', name: 'Seafoam Teal', type: 'classic'},
+    {color: '#F4A261', name: 'Sunset Orange', type: 'classic'},
+    {color: '#6A4C93', name: 'Royal Purple', type: 'classic'}
   ];
   let currentSkinIndex = 0;
 
   // Load saved skins
   if(localStorage.getItem("boatRacerSkins")){
     let saved = JSON.parse(localStorage.getItem("boatRacerSkins"));
-    if(saved.length > boatSkins.length)
+    if(saved.length >= boatSkins.length)
       boatSkins = saved;
   }
 
@@ -410,41 +513,190 @@
     y: 0,
     speed: 6,
     baseSpeed: 6,
-    color: boatSkins[0].color
+    color: boatSkins[0].color,
+    type: boatSkins[0].type || 'classic'
   };
 
   function resetBoat(){
     boat.x = canvas.width/2 - boat.w/2;
     boat.y = canvas.height - boat.h - 100;
     boat.color = boatSkins[currentSkinIndex].color;
+    boat.type = boatSkins[currentSkinIndex].type || 'classic';
     boat.speed = boat.baseSpeed;
   }
 
-  // QUEST definitions and storage
+  // Enhanced QUEST definitions with more variety
   const quests = [
+    // Beginner Quests
+    {
+      id: 'firstWin',
+      description: "Complete your first game",
+      progress: 0,
+      goal: 1,
+      reward: { type: 'skin', color: '#ff6b6b', name: 'Victory Red', boatType: 'speedboat' },
+      completed: false,
+      category: 'beginner'
+    },
+    {
+      id: 'survive30',
+      description: "Survive 30 seconds in one run",
+      progress: 0,
+      goal: 30,
+      reward: { type: 'skin', color: '#4ecdc4', name: 'Survivor Cyan', boatType: 'yacht' },
+      completed: false,
+      category: 'survival'
+    },
+    {
+      id: 'collect5powerups',
+      description: "Collect 5 power-ups in total",
+      progress: 0,
+      goal: 5,
+      reward: { type: 'skin', color: '#45b7d1', name: 'Power Blue', boatType: 'classic' },
+      completed: false,
+      category: 'collection'
+    },
+    
+    // Intermediate Quests
     {
       id: 'survive60',
-      description: "Survive 60s in one run",
-      progress: 0, // not needed for this type
+      description: "Survive 60 seconds in one run",
+      progress: 0,
       goal: 60,
-      reward: { type: 'skin', color: '#7bbc97', name: 'Camo Boat' },
-      completed: false
+      reward: { type: 'skin', color: '#7bbc97', name: 'Camo Warrior', boatType: 'military' },
+      completed: false,
+      category: 'survival'
     },
     {
-      id: 'powerup10',
-      description: "Collect 10 power-ups (lifetime)",
+      id: 'powerup15',
+      description: "Collect 15 power-ups (lifetime)",
+      progress: 0,
+      goal: 15,
+      reward: { type: 'skin', color: '#39FF14', name: 'Neon Storm', boatType: 'hovercraft' },
+      completed: false,
+      category: 'collection'
+    },
+    {
+      id: 'avoid50obstacles',
+      description: "Avoid 50 obstacles (lifetime)",
+      progress: 0,
+      goal: 50,
+      reward: { type: 'skin', color: '#ffa726', name: 'Dodge Master', boatType: 'jet' },
+      completed: false,
+      category: 'skill'
+    },
+    {
+      id: 'play10games',
+      description: "Complete 10 games total",
       progress: 0,
       goal: 10,
-      reward: { type: 'skin', color: '#39FF14', name: 'Neon Boat' },
-      completed: false
+      reward: { type: 'skin', color: '#ab47bc', name: 'Veteran Purple', boatType: 'cruiser' },
+      completed: false,
+      category: 'dedication'
+    },
+    
+    // Advanced Quests  
+    {
+      id: 'survive90',
+      description: "Survive 90 seconds in one run",
+      progress: 0,
+      goal: 90,
+      reward: { type: 'skin', color: '#e91e63', name: 'Elite Pink', boatType: 'submarine' },
+      completed: false,
+      category: 'survival'
     },
     {
-      id: 'beatBest',
-      description: "Beat your best score by +30s",
-      progress: 0, // dummy, not used
+      id: 'perfectRun',
+      description: "Complete a game without taking damage",
+      progress: 0,
       goal: 1,
-      reward: { type: 'skin', rainbow:true, name: 'Rainbow Boat' },
-      completed: false
+      reward: { type: 'skin', color: '#ffeb3b', name: 'Golden Perfection', boatType: 'golden' },
+      completed: false,
+      category: 'skill'
+    },
+    {
+      id: 'hardMode30',
+      description: "Survive 30s in Hard Mode",
+      progress: 0,
+      goal: 30,
+      reward: { type: 'skin', color: '#ff5722', name: 'Hardcore Orange', boatType: 'racer' },
+      completed: false,
+      category: 'challenge'
+    },
+    {
+      id: 'shield10times',
+      description: "Use shield power-up 10 times",
+      progress: 0,
+      goal: 10,
+      reward: { type: 'skin', color: '#00bcd4', name: 'Shield Master', boatType: 'armored' },
+      completed: false,
+      category: 'collection'
+    },
+    
+    // Expert Quests
+    {
+      id: 'survive120',
+      description: "Survive 120 seconds (2 minutes!)",
+      progress: 0,
+      goal: 120,
+      reward: { type: 'skin', color: '#9c27b0', name: 'Time Lord', boatType: 'timeship' },
+      completed: false,
+      category: 'survival'
+    },
+    {
+      id: 'beatBest30',
+      description: "Beat your best score by +30s",
+      progress: 0,
+      goal: 1,
+      reward: { type: 'skin', rainbow: true, name: 'Rainbow Legend', boatType: 'legendary' },
+      completed: false,
+      category: 'achievement'
+    },
+    {
+      id: 'hardMode60',
+      description: "Survive 60s in Hard Mode",
+      progress: 0,
+      goal: 60,
+      reward: { type: 'skin', color: '#212121', name: 'Shadow Phantom', boatType: 'stealth' },
+      completed: false,
+      category: 'challenge'
+    },
+    {
+      id: 'powerup50',
+      description: "Collect 50 power-ups (lifetime)",
+      progress: 0,
+      goal: 50,
+      reward: { type: 'skin', color: '#00e676', name: 'Power Collector', boatType: 'energy' },
+      completed: false,
+      category: 'collection'
+    },
+    
+    // Master Quests
+    {
+      id: 'avoid200obstacles',
+      description: "Avoid 200 obstacles (lifetime)",
+      progress: 0,
+      goal: 200,
+      reward: { type: 'skin', color: '#1de9b6', name: 'Evasion Expert', boatType: 'phantom' },
+      completed: false,
+      category: 'skill'
+    },
+    {
+      id: 'survive180',
+      description: "Survive 180 seconds (3 minutes!)",
+      progress: 0,
+      goal: 180,
+      reward: { type: 'skin', color: '#f44336', name: 'Ultimate Survivor', boatType: 'ultimate' },
+      completed: false,
+      category: 'survival'
+    },
+    {
+      id: 'play50games',
+      description: "Complete 50 games total",
+      progress: 0,
+      goal: 50,
+      reward: { type: 'skin', color: '#ff9800', name: 'Master Sailor', boatType: 'flagship' },
+      completed: false,
+      category: 'dedication'
     }
   ];
 
@@ -463,19 +715,82 @@
     localStorage.setItem("boatRacerSkins", JSON.stringify(boatSkins));
   }
 
+  function showQuestNotification(questName, rewardName) {
+    questNotification.innerHTML = `
+      <div style="font-size: 18px; margin-bottom: 5px;">🎉 QUEST COMPLETE! 🎉</div>
+      <div style="font-size: 14px; margin-bottom: 3px;">${questName}</div>
+      <div style="font-size: 12px; opacity: 0.9;">Unlocked: ${rewardName}</div>
+    `;
+    questNotification.classList.add('show');
+    
+    setTimeout(() => {
+      questNotification.classList.remove('show');
+    }, 4000);
+  }
+
   function renderQuests(){
     questList.innerHTML = "";
-    quests.forEach(q=>{
-      const div = document.createElement('div');
-      div.className = `quest${q.completed ? ' completed' : ''}`;
-      let progText = q.completed ?
-        "✅ Completed!" :
-        (q.id==='survive60'||q.id==='beatBest' ? "Progress: -" : `Progress: ${q.progress}/${q.goal}`);
-      let rewardText = q.reward.name || 'Unknown';
-      div.innerHTML = `<b>${q.description}</b><br/>${progText}<br/>Reward: <i>${rewardText}</i>`;
-      questList.appendChild(div);
+    
+    // Group quests by category
+    const categories = {
+      'beginner': '🌟 Beginner',
+      'survival': '⏱️ Survival',
+      'collection': '💎 Collection',
+      'skill': '🎯 Skill',
+      'dedication': '🏆 Dedication',
+      'challenge': '🔥 Challenge',
+      'achievement': '👑 Achievement'
+    };
+    
+    Object.entries(categories).forEach(([cat, title]) => {
+      const categoryQuests = quests.filter(q => q.category === cat);
+      if(categoryQuests.length === 0) return;
+      
+      const categoryHeader = document.createElement('div');
+      categoryHeader.style.cssText = `
+        font-size: 1.3em; 
+        font-weight: bold; 
+        margin: 20px 0 10px 0; 
+        color: #00fff7; 
+        text-align: center;
+        text-shadow: 0 0 10px #00fff7;
+        border-bottom: 2px solid #00fff7;
+        padding-bottom: 5px;
+      `;
+      categoryHeader.textContent = title;
+      questList.appendChild(categoryHeader);
+      
+      categoryQuests.forEach(q=>{
+        const div = document.createElement('div');
+        div.className = `quest${q.completed ? ' completed' : ''}`;
+        
+        let progText = q.completed ?
+          "✅ Completed!" :
+          `Progress: ${q.progress}/${q.goal}`;
+          
+        // Special progress display for certain quest types
+        if(!q.completed) {
+          if(q.id.includes('survive') && !q.id.includes('total')) {
+            progText = "Progress: Complete a run to update";
+          } else if(q.id === 'beatBest30') {
+            progText = "Progress: Beat your high score by 30s+";
+          } else if(q.id === 'perfectRun') {
+            progText = "Progress: Complete a flawless run";
+          }
+        }
+        
+        let rewardText = q.reward.name || 'Unknown';
+        
+        div.innerHTML = `
+          <div class="quest-title">${q.description}</div>
+          <div class="quest-progress">${progText}</div>
+          <div class="quest-reward">🏆 Reward: ${rewardText}</div>
+        `;
+        questList.appendChild(div);
+      });
     });
   }
+  
   questsBtn.addEventListener("click", () => {
     renderQuests();
     showQuestsMenu();
@@ -584,6 +899,7 @@
       switch(this.type) {
         case 'shield':
           hasShield = true;
+          gameStats.shieldsUsed++;
           updatePowerUpIndicators();
           break;
         case 'slow':
@@ -696,7 +1012,8 @@
       ctx.stroke();
       ctx.setLineDash([]);
     }
-    // Rainbow boat drawing
+    
+    // Different boat types drawing
     if(boatSkins[currentSkinIndex].rainbow){
       let grad = ctx.createLinearGradient(-boat.w/2, 0, boat.w/2, 0);
       grad.addColorStop(0, "red");
@@ -709,21 +1026,85 @@
     } else {
       ctx.fillStyle = boat.color;
     }
-    ctx.beginPath();
-    ctx.moveTo(-boat.w/2, boat.h/2);
-    ctx.lineTo(-boat.w/3, -boat.h/2);
-    ctx.lineTo(boat.w/3, -boat.h/2);
-    ctx.lineTo(boat.w/2, boat.h/2);
-    ctx.closePath();
-    ctx.fill();
-    ctx.strokeStyle = '#00fff7';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(-boat.w/4, boat.h/3);
-    ctx.lineTo(boat.w/4, boat.h/3);
-    ctx.stroke();
-    ctx.fillStyle = '#0ff';
-    ctx.fillRect(-boat.w/10, boat.h/6, boat.w/5, boat.h/12);
+    
+    const boatType = boatSkins[currentSkinIndex].boatType || 'classic';
+    
+    switch(boatType) {
+      case 'speedboat':
+        // Sleeker, more angular design
+        ctx.beginPath();
+        ctx.moveTo(-boat.w/2, boat.h/2);
+        ctx.lineTo(-boat.w/4, -boat.h/2 + 5);
+        ctx.lineTo(boat.w/4, -boat.h/2 + 5);
+        ctx.lineTo(boat.w/2, boat.h/2);
+        ctx.lineTo(-boat.w/2, boat.h/2);
+        ctx.fill();
+        // Add fins
+        ctx.fillRect(-boat.w/3, boat.h/3, boat.w/6, boat.h/8);
+        ctx.fillRect(boat.w/6, boat.h/3, boat.w/6, boat.h/8);
+        break;
+      case 'yacht':
+        // Wider, more luxurious design
+        ctx.beginPath();
+        ctx.moveTo(-boat.w/2 - 5, boat.h/2);
+        ctx.lineTo(-boat.w/3, -boat.h/2);
+        ctx.lineTo(boat.w/3, -boat.h/2);
+        ctx.lineTo(boat.w/2 + 5, boat.h/2);
+        ctx.closePath();
+        ctx.fill();
+        // Add deck details
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(-boat.w/4, -boat.h/4, boat.w/2, boat.h/6);
+        break;
+      case 'submarine':
+        // Cylindrical design
+        ctx.beginPath();
+        ctx.ellipse(0, 0, boat.w/2, boat.h/2.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // Add periscope
+        ctx.strokeStyle = boat.color;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(0, -boat.h/2.5);
+        ctx.lineTo(0, -boat.h/2 - 10);
+        ctx.stroke();
+        break;
+      case 'hovercraft':
+        // Circular base with fan
+        ctx.beginPath();
+        ctx.ellipse(0, 0, boat.w/2.2, boat.h/2.2, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // Add fan blades
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2;
+        for(let i = 0; i < 6; i++) {
+          const angle = (i / 6) * Math.PI * 2;
+          ctx.beginPath();
+          ctx.moveTo(0, 0);
+          ctx.lineTo(Math.cos(angle) * 15, Math.sin(angle) * 15);
+          ctx.stroke();
+        }
+        break;
+      default: // classic and others
+        ctx.beginPath();
+        ctx.moveTo(-boat.w/2, boat.h/2);
+        ctx.lineTo(-boat.w/3, -boat.h/2);
+        ctx.lineTo(boat.w/3, -boat.h/2);
+        ctx.lineTo(boat.w/2, boat.h/2);
+        ctx.closePath();
+        ctx.fill();
+        // Classic boat details
+        ctx.strokeStyle = '#00fff7';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(-boat.w/4, boat.h/3);
+        ctx.lineTo(boat.w/4, boat.h/3);
+        ctx.stroke();
+        ctx.fillStyle = '#0ff';
+        ctx.fillRect(-boat.w/10, boat.h/6, boat.w/5, boat.h/12);
+        break;
+    }
+    
     ctx.restore();
   }
 
@@ -800,9 +1181,11 @@
   }
 
   let animationFrameId;
+  let gameStartLives = maxLives; // Track starting lives for perfect run
 
   function resetGame(){
     lives = maxLives;
+    gameStartLives = maxLives;
     distance = 0;
     startTime = Date.now();
     gameOver = false;
@@ -831,7 +1214,7 @@
     hasShield = false;
     slowMotionActive = false;
     boat.speed = boat.baseSpeed;
-    gamePaused = false; // Game starts unpaused
+    gamePaused = false;
     updatePowerUpIndicators();
     resetBoat();
     updateHearts();
@@ -840,7 +1223,7 @@
 
   function updateInfo(){
     let elapsed = Math.floor((Date.now() - startTime - pauseDuration) / 1000);
-    if(elapsed < 0) elapsed = 0; // Prevent negative time
+    if(elapsed < 0) elapsed = 0;
     infoTime.textContent = `Time: ${elapsed}s`;
     if(elapsed > highScore) {
       highScore = elapsed;
@@ -871,6 +1254,7 @@
       if(o.y - o.size/2 > canvas.height){
         obstacles.splice(i, 1);
         distance += 100;
+        gameStats.totalObstaclesAvoided++;
       } else if(isCollide(boat, o.getBounds())){
         obstacles.splice(i, 1);
         if(hasShield) {
@@ -895,7 +1279,7 @@
       } else if(!p.collected && isCollide(boat, p.getBounds())) {
         p.activate();
         powerUps.splice(i, 1);
-        onPowerupCollected(); // QUEST PROGRESS
+        onPowerupCollected();
       }
     });
     checkPowerUpExpiration();
@@ -924,8 +1308,8 @@
 
   // === FIX: stop game loop on returning to menu to avoid background running ===
   function showMainMenu(){
-    gamePaused = true;                    // pause game loop
-    cancelAnimationFrame(animationFrameId);  // cancel animation loop
+    gamePaused = true;
+    cancelAnimationFrame(animationFrameId);
     menu.style.display = 'block';
     difficultyMenu.style.display = 'none';
     skinsMenu.style.display = 'none';
@@ -936,7 +1320,7 @@
     flashOverlay.style.display = 'none';
     pauseBtn.style.display = 'none';
     difficultyIndicator.style.display = 'none';
-    pauseBtn.textContent = '⏸';          // reset pause button text
+    pauseBtn.textContent = '⏸';
   }
   function showSkinsMenu(){
     menu.style.display = 'none';
@@ -977,7 +1361,8 @@
     const elapsed = Math.floor((Date.now()-startTime - pauseDuration)/1000);
     finalScoreP.textContent = `Your Time: ${elapsed}s`;
     bestScoreP.textContent = `Best Time: ${highScore}s`;
-    checkQuestsAtEnd(elapsed); // Check quests at end of round!
+    gameStats.longestSurvival = Math.max(gameStats.longestSurvival, elapsed);
+    checkQuestsAtEnd(elapsed);
   }
   function showGameCanvas(){
     menu.style.display = 'none';
@@ -1027,7 +1412,7 @@
   startGameBtn.addEventListener('click', () => {
     resetGame();
     showGameCanvas();
-    loop(); // Start the game loop immediately
+    loop();
   });
   skinsBtn.addEventListener('click', () => {
     initSkinButtons();
@@ -1039,7 +1424,7 @@
   restartBtn.addEventListener('click', () => {
     resetGame();
     showGameCanvas();
-    loop(); // Start the game loop immediately
+    loop();
   });
   backToMenuBtn.addEventListener('click', () => {
     showMainMenu();
@@ -1052,34 +1437,139 @@
   });
 
   // QUEST SYSTEM tracking and rewards
-  function checkQuestsAtEnd(elapsed){
-    quests.forEach(q=>{
-      if(q.id === 'survive60' && !q.completed && elapsed >= 60){
-        q.completed = true;
-        unlockSkin(q.reward);
+  function checkQuestsAtEnd(elapsed) {
+    gameStats.totalGamesPlayed++;
+    
+    // Check if it was a perfect run (no damage taken)
+    if(lives === gameStartLives) {
+      gameStats.perfectRuns++;
+    }
+    
+    // Check hard mode specific achievements
+    if(difficulty === 'hard') {
+      gameStats.hardModeWins++;
+    }
+    
+    let completedQuests = [];
+    
+    quests.forEach(q => {
+      if(q.completed) return;
+      
+      let questCompleted = false;
+      
+      switch(q.id) {
+        case 'firstWin':
+          if(gameStats.totalGamesPlayed >= 1) {
+            q.progress = gameStats.totalGamesPlayed;
+            questCompleted = true;
+          }
+          break;
+        case 'survive30':
+        case 'survive60': 
+        case 'survive90':
+        case 'survive120':
+        case 'survive180':
+          const survivalTime = parseInt(q.id.replace('survive', ''));
+          if(elapsed >= survivalTime) {
+            q.progress = elapsed;
+            questCompleted = true;
+          }
+          break;
+        case 'collect5powerups':
+        case 'powerup15':
+        case 'powerup50':
+          q.progress = gameStats.totalPowerUps;
+          if(gameStats.totalPowerUps >= q.goal) {
+            questCompleted = true;
+          }
+          break;
+        case 'avoid50obstacles':
+        case 'avoid200obstacles':
+          q.progress = gameStats.totalObstaclesAvoided;
+          if(gameStats.totalObstaclesAvoided >= q.goal) {
+            questCompleted = true;
+          }
+          break;
+        case 'play10games':
+        case 'play50games':
+          q.progress = gameStats.totalGamesPlayed;
+          if(gameStats.totalGamesPlayed >= q.goal) {
+            questCompleted = true;
+          }
+          break;
+        case 'perfectRun':
+          if(lives === gameStartLives && elapsed >= 30) {
+            q.progress = 1;
+            questCompleted = true;
+          }
+          break;
+        case 'hardMode30':
+        case 'hardMode60':
+          if(difficulty === 'hard') {
+            const hardTime = parseInt(q.id.replace('hardMode', ''));
+            if(elapsed >= hardTime) {
+              q.progress = elapsed;
+              questCompleted = true;
+            }
+          }
+          break;
+        case 'shield10times':
+          q.progress = gameStats.shieldsUsed;
+          if(gameStats.shieldsUsed >= q.goal) {
+            questCompleted = true;
+          }
+          break;
+        case 'beatBest30':
+          const previousBest = parseInt(localStorage.getItem('boatRacerHighScore') || '0');
+          if(elapsed >= previousBest + 30 && previousBest > 0) {
+            q.progress = 1;
+            questCompleted = true;
+          }
+          break;
       }
-      if(q.id === 'beatBest' && !q.completed && elapsed >= highScore+30 && highScore>0){
+      
+      if(questCompleted && !q.completed) {
         q.completed = true;
-        unlockSkin(q.reward);
+        completedQuests.push(q);
+        unlockSkin(q.reward, q.description);
       }
     });
+    
     saveQuests();
+    saveStats();
   }
+  
   function onPowerupCollected(){
-    const q = quests.find(q=>q.id==='powerup10');
-    if(!q.completed){
-      q.progress++;
-      if(q.progress >= q.goal){
-        q.completed = true;
-        unlockSkin(q.reward);
+    gameStats.totalPowerUps++;
+    
+    // Check power-up related quests immediately
+    quests.forEach(q => {
+      if(q.completed) return;
+      
+      if(q.id === 'collect5powerups' || q.id === 'powerup15' || q.id === 'powerup50') {
+        q.progress = gameStats.totalPowerUps;
+        if(gameStats.totalPowerUps >= q.goal && !q.completed) {
+          q.completed = true;
+          unlockSkin(q.reward, q.description);
+        }
       }
-      saveQuests();
-    }
+    });
+    
+    saveQuests();
+    saveStats();
   }
-  function unlockSkin(reward){
-    alert(`🎉 Quest Complete! You unlocked: ${reward.name}`);
-    boatSkins.push({color: reward.color, name: reward.name, rainbow: reward.rainbow});
+  
+  function unlockSkin(reward, questDescription){
+    const newSkin = {
+      color: reward.color, 
+      name: reward.name, 
+      rainbow: reward.rainbow,
+      boatType: reward.boatType || 'classic'
+    };
+    
+    boatSkins.push(newSkin);
     saveSkins();
+    showQuestNotification(questDescription, reward.name);
   }
 
   // AUTO-PAUSE WHEN TAB OR APP BECOMES HIDDEN
