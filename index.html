@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-<title>Boat Racer - Enhanced Quests</title>
+<title>Boat Racer - Enhanced Quests & Shop</title>
 <style>
   html, body {
     margin:0; padding:0; overflow:hidden; 
@@ -73,7 +73,7 @@
     box-shadow: 0 0 14px #73c2e9;
     transform: translateY(-3px);
   }
-  #menu, #skinsMenu, #restartMenu, #pauseMenu, #difficultyMenu, #questsMenu {
+  #menu, #skinsMenu, #restartMenu, #pauseMenu, #difficultyMenu, #questsMenu, #shopMenu {
     position: fixed;
     top:50%; left:50%;
     transform: translate(-50%, -50%);
@@ -88,7 +88,7 @@
     user-select:none;
     z-index: 200;
   }
-  #difficultyMenu h1, #questsMenu h2 {
+  #difficultyMenu h1, #questsMenu h2, #shopMenu h2 {
     margin-top: 0;
     font-size: 2.5em;
     text-shadow: 0 0 10px #00fff7;
@@ -145,25 +145,34 @@
     display: flex;
     flex-direction: column;
   }
-  #questList {
+  #shopMenu {
+    min-width: 350px;
+    max-width: 450px;
+    max-height: 80vh;
+    padding: 30px 32px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  #questList, #shopItems {
     max-height: 60vh;
     overflow-y: auto;
     padding-right: 10px;
     scrollbar-width: thin;
     scrollbar-color: #00fff7 rgba(0,100,150,0.3);
   }
-  #questList::-webkit-scrollbar {
+  #questList::-webkit-scrollbar, #shopItems::-webkit-scrollbar {
     width: 8px;
   }
-  #questList::-webkit-scrollbar-track {
+  #questList::-webkit-scrollbar-track, #shopItems::-webkit-scrollbar-track {
     background: rgba(0,100,150,0.3);
     border-radius: 10px;
   }
-  #questList::-webkit-scrollbar-thumb {
+  #questList::-webkit-scrollbar-thumb, #shopItems::-webkit-scrollbar-thumb {
     background: #00fff7;
     border-radius: 10px;
   }
-  #questList::-webkit-scrollbar-thumb:hover {
+  #questList::-webkit-scrollbar-thumb:hover, #shopItems::-webkit-scrollbar-thumb:hover {
     background: #73c2e9;
   }
   .quest {
@@ -196,6 +205,39 @@
     font-size: 0.85em;
     color: #ffa500;
     font-style: italic;
+  }
+  .shop-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 16px 0;
+    padding: 15px;
+    border-radius: 10px;
+    background: rgba(0,100,150,0.3);
+    font-size: 1.0em;
+    box-shadow: 0 0 8px #0ff5;
+  }
+  .item-details {
+    text-align: left;
+    flex-grow: 1;
+  }
+  .item-title {
+    font-weight: bold;
+    font-size: 1.1em;
+    margin-bottom: 5px;
+  }
+  .item-description {
+    font-size: 0.9em;
+    color: #aaf;
+  }
+  .item-price {
+    display: flex;
+    align-items: center;
+    font-weight: bold;
+    color: #ffd700;
+  }
+  .item-price button {
+    margin-left: 10px;
   }
   canvas {
     display:block; margin:0 auto;
@@ -321,6 +363,13 @@
     0% { filter: hue-rotate(0deg); }
     100% { filter: hue-rotate(360deg); }
   }
+  #shopMenu .coins-display {
+    margin-bottom: 20px;
+    font-size: 1.5em;
+    font-weight: bold;
+    color: #ffd700;
+    text-shadow: 0 0 10px #ffea00;
+  }
 </style>
 </head>
 <body>
@@ -329,6 +378,7 @@
     <div id="hearts"></div>
     <div id="time">Time: 0s</div>
     <div id="highScore">High Score: 0s</div>
+    <div id="coins">Coins: 0</div>
   </div>
   <div id="difficultyIndicator"></div>
   <div id="questNotification"></div>
@@ -337,6 +387,7 @@
     <button id="playBtn">Play</button><br/>
     <button id="skinsBtn">Skins</button><br/>
     <button id="questsBtn">Quests</button><br/>
+    <button id="shopBtn">Shop</button><br/>
   </div>
   <div id="difficultyMenu">
     <h1>Select Difficulty</h1>
@@ -360,6 +411,12 @@
     <div id="questList"></div>
     <button id="questsBackBtn">Back</button>
   </div>
+  <div id="shopMenu">
+    <h2>Shop</h2>
+    <div class="coins-display">Your Coins: <span id="shopCoins">0</span></div>
+    <div id="shopItems"></div>
+    <button id="shopBackBtn">Back</button>
+  </div>
   <div id="restartMenu">
     <h1>Game Over!</h1>
     <p id="finalScore">Your Time: 0s</p>
@@ -382,19 +439,8 @@
   <canvas id="gameCanvas"></canvas>
 </div>
 
-<!-- Ad Banner along the bottom -->
 <div id="adBanner">
-  <script type="text/javascript">
-    atOptions = {
-      'key' : 'd8c18047f4719cbcbd612bf296c3aa34',
-      'format' : 'iframe',
-      'height' : 50,
-      'width' : 320,
-      'params' : {}
-    };
-  </script>
-  <script type="text/javascript" src="//www.highperformanceformat.com/d8c18047f4719cbcbd612bf296c3aa34/invoke.js"></script>
-</div>
+  </div>
 
 <script>
 (() => {
@@ -411,6 +457,7 @@
 
   const infoTime = document.getElementById('time');
   const infoHighScore = document.getElementById('highScore');
+  const infoCoins = document.getElementById('coins');
   const heartsContainer = document.getElementById('hearts');
   const menu = document.getElementById('menu');
   const playBtn = document.getElementById('playBtn');
@@ -441,6 +488,13 @@
   const questsBackBtn = document.getElementById('questsBackBtn');
   const questList = document.getElementById('questList');
 
+  // NEW: Shop DOM
+  const shopBtn = document.getElementById('shopBtn');
+  const shopMenu = document.getElementById('shopMenu');
+  const shopItemsDiv = document.getElementById('shopItems');
+  const shopBackBtn = document.getElementById('shopBackBtn');
+  const shopCoinsDisplay = document.getElementById('shopCoins');
+
   let lives = 3;
   const maxLives = 3;
   let distance = 0;
@@ -468,6 +522,11 @@
   let slowMotionActive = false;
   let powerUpEndTime = { slow: 0 };
   const powerUpDuration = 5000;
+  
+  // NEW: Coin System Variables
+  let coins = 0;
+  let lastCoinTime = 0;
+  let hasStartingShield = false;
 
   // Game statistics for quests
   let gameStats = {
@@ -480,30 +539,74 @@
     shieldsUsed: 0
   };
 
-  // Load game stats
+  // Load game stats and coins
   if(localStorage.getItem("boatRacerStats")){
     gameStats = {...gameStats, ...JSON.parse(localStorage.getItem("boatRacerStats"))};
+  }
+  if(localStorage.getItem("boatRacerCoins")){
+    coins = parseInt(localStorage.getItem("boatRacerCoins"));
   }
 
   function saveStats(){
     localStorage.setItem("boatRacerStats", JSON.stringify(gameStats));
+  }
+  
+  function saveCoins(){
+    localStorage.setItem("boatRacerCoins", coins);
+    infoCoins.textContent = `Coins: ${coins}`;
+    shopCoinsDisplay.textContent = coins;
   }
 
   // Enhanced Boat Skins with different shapes and types
   let boatSkins = [
     {color: '#E63946', name: 'Classic Red', type: 'classic'},
     {color: '#457B9D', name: 'Ocean Blue', type: 'classic'},
-    {color: '#2A9D8F', name: 'Seafoam Teal', type: 'classic'},
-    {color: '#F4A261', name: 'Sunset Orange', type: 'classic'},
-    {color: '#6A4C93', name: 'Royal Purple', type: 'classic'}
   ];
   let currentSkinIndex = 0;
 
-  // Load saved skins
+  // Shop items now contain all skins
+  const shopItems = [
+    // Purchasable skins from old list
+    { id: 'skin_SunsetOrange', name: 'Sunset Orange', type: 'skin', cost: 1000, skinData: {color: '#F4A261', name: 'Sunset Orange', type: 'classic'} },
+    { id: 'skin_RoyalPurple', name: 'Royal Purple', type: 'skin', cost: 1250, skinData: {color: '#6A4C93', name: 'Royal Purple', type: 'classic'} },
+    // Quest-based skins now in shop
+    { id: 'skin_VictoryRed', name: 'Victory Red', type: 'skin', cost: 1500, skinData: {color: '#ff6b6b', name: 'Victory Red', type: 'speedboat'} },
+    { id: 'skin_SurvivorCyan', name: 'Survivor Cyan', type: 'skin', cost: 2000, skinData: {color: '#4ecdc4', name: 'Survivor Cyan', type: 'yacht'} },
+    { id: 'skin_CamoWarrior', name: 'Camo Warrior', type: 'skin', cost: 2500, skinData: {color: '#7bbc97', name: 'Camo Warrior', type: 'military'} },
+    { id: 'skin_NeonStorm', name: 'Neon Storm', type: 'skin', cost: 3000, skinData: {color: '#39FF14', name: 'Neon Storm', type: 'hovercraft'} },
+    { id: 'skin_DodgeMaster', name: 'Dodge Master', type: 'skin', cost: 3500, skinData: {color: '#ffa726', name: 'Dodge Master', type: 'jet'} },
+    { id: 'skin_VeteranPurple', name: 'Veteran Purple', type: 'skin', cost: 4000, skinData: {color: '#ab47bc', name: 'Veteran Purple', type: 'cruiser'} },
+    { id: 'skin_ElitePink', name: 'Elite Pink', type: 'skin', cost: 4500, skinData: {color: '#e91e63', name: 'Elite Pink', type: 'submarine'} },
+    { id: 'skin_GoldenPerfection', name: 'Golden Perfection', type: 'skin', cost: 5000, skinData: {color: '#ffeb3b', name: 'Golden Perfection', type: 'golden'} },
+    { id: 'skin_HardcoreOrange', name: 'Hardcore Orange', type: 'skin', cost: 5500, skinData: {color: '#ff5722', name: 'Hardcore Orange', type: 'racer'} },
+    { id: 'skin_ShieldMaster', name: 'Shield Master', type: 'skin', cost: 6000, skinData: {color: '#00bcd4', name: 'Shield Master', type: 'armored'} },
+    { id: 'skin_TimeLord', name: 'Time Lord', type: 'skin', cost: 6500, skinData: {color: '#9c27b0', name: 'Time Lord', type: 'timeship'} },
+    { id: 'skin_ShadowPhantom', name: 'Shadow Phantom', type: 'skin', cost: 7000, skinData: {color: '#212121', name: 'Shadow Phantom', type: 'stealth'} },
+    { id: 'skin_PowerCollector', name: 'Power Collector', type: 'skin', cost: 7500, skinData: {color: '#00e676', name: 'Power Collector', type: 'energy'} },
+    { id: 'skin_EvasionExpert', name: 'Evasion Expert', type: 'skin', cost: 8000, skinData: {color: '#1de9b6', name: 'Evasion Expert', type: 'phantom'} },
+    { id: 'skin_UltimateSurvivor', name: 'Ultimate Survivor', type: 'skin', cost: 8500, skinData: {color: '#f44336', name: 'Ultimate Survivor', type: 'ultimate'} },
+    { id: 'skin_MasterSailor', name: 'Master Sailor', type: 'skin', cost: 9000, skinData: {color: '#ff9800', name: 'Master Sailor', type: 'flagship'} },
+    { id: 'skin_RainbowLegend', name: 'Rainbow Legend', type: 'skin', cost: 10000, skinData: {color: '#ffffff', name: 'Rainbow Legend', rainbow: true, boatType: 'legendary'} },
+    { id: 'skin_GoldPlated', name: 'Gold Plated', type: 'skin', cost: 12000, skinData: {color: '#ffd700', name: 'Gold Plated', type: 'golden'} },
+    // Other purchasable items
+    { id: 'healthBoost', name: 'Health Boost', desc: 'Instantly restore one life.', cost: 500, type: 'health' },
+    { id: 'startShield', name: 'Starting Shield', desc: 'Start your next game with a shield.', cost: 1000, type: 'shield' }
+  ];
+
+  // Merge shop skins into boatSkins array and load unlocked status
+  shopItems.filter(item => item.type === 'skin').forEach(item => {
+    item.skinData.unlocked = false;
+    boatSkins.push(item.skinData);
+  });
+
   if(localStorage.getItem("boatRacerSkins")){
-    let saved = JSON.parse(localStorage.getItem("boatRacerSkins"));
-    if(saved.length >= boatSkins.length)
-      boatSkins = saved;
+    let savedSkins = JSON.parse(localStorage.getItem("boatRacerSkins"));
+    savedSkins.forEach(savedSkin => {
+        const matchingSkin = boatSkins.find(s => s.name === savedSkin.name);
+        if (matchingSkin) {
+            matchingSkin.unlocked = savedSkin.unlocked;
+        }
+    });
   }
 
   const boat = {
@@ -525,179 +628,35 @@
     boat.speed = boat.baseSpeed;
   }
 
-  // Enhanced QUEST definitions with more variety
+  // Enhanced QUEST definitions with more variety - now with coin rewards
   const quests = [
     // Beginner Quests
-    {
-      id: 'firstWin',
-      description: "Complete your first game",
-      progress: 0,
-      goal: 1,
-      reward: { type: 'skin', color: '#ff6b6b', name: 'Victory Red', boatType: 'speedboat' },
-      completed: false,
-      category: 'beginner'
-    },
-    {
-      id: 'survive30',
-      description: "Survive 30 seconds in one run",
-      progress: 0,
-      goal: 30,
-      reward: { type: 'skin', color: '#4ecdc4', name: 'Survivor Cyan', boatType: 'yacht' },
-      completed: false,
-      category: 'survival'
-    },
-    {
-      id: 'collect5powerups',
-      description: "Collect 5 power-ups in total",
-      progress: 0,
-      goal: 5,
-      reward: { type: 'skin', color: '#45b7d1', name: 'Power Blue', boatType: 'classic' },
-      completed: false,
-      category: 'collection'
-    },
+    { id: 'firstWin', description: "Complete your first game", progress: 0, goal: 1, reward: { type: 'coins', amount: 200 }, completed: false, category: 'beginner' },
+    { id: 'survive30', description: "Survive 30 seconds in one run", progress: 0, goal: 30, reward: { type: 'coins', amount: 300 }, completed: false, category: 'survival' },
+    { id: 'collect5powerups', description: "Collect 5 power-ups in total", progress: 0, goal: 5, reward: { type: 'coins', amount: 500 }, completed: false, category: 'collection' },
     
     // Intermediate Quests
-    {
-      id: 'survive60',
-      description: "Survive 60 seconds in one run",
-      progress: 0,
-      goal: 60,
-      reward: { type: 'skin', color: '#7bbc97', name: 'Camo Warrior', boatType: 'military' },
-      completed: false,
-      category: 'survival'
-    },
-    {
-      id: 'powerup15',
-      description: "Collect 15 power-ups (lifetime)",
-      progress: 0,
-      goal: 15,
-      reward: { type: 'skin', color: '#39FF14', name: 'Neon Storm', boatType: 'hovercraft' },
-      completed: false,
-      category: 'collection'
-    },
-    {
-      id: 'avoid50obstacles',
-      description: "Avoid 50 obstacles (lifetime)",
-      progress: 0,
-      goal: 50,
-      reward: { type: 'skin', color: '#ffa726', name: 'Dodge Master', boatType: 'jet' },
-      completed: false,
-      category: 'skill'
-    },
-    {
-      id: 'play10games',
-      description: "Complete 10 games total",
-      progress: 0,
-      goal: 10,
-      reward: { type: 'skin', color: '#ab47bc', name: 'Veteran Purple', boatType: 'cruiser' },
-      completed: false,
-      category: 'dedication'
-    },
+    { id: 'survive60', description: "Survive 60 seconds in one run", progress: 0, goal: 60, reward: { type: 'coins', amount: 750 }, completed: false, category: 'survival' },
+    { id: 'powerup15', description: "Collect 15 power-ups (lifetime)", progress: 0, goal: 15, reward: { type: 'coins', amount: 1000 }, completed: false, category: 'collection' },
+    { id: 'avoid50obstacles', description: "Avoid 50 obstacles (lifetime)", progress: 0, goal: 50, reward: { type: 'coins', amount: 1250 }, completed: false, category: 'skill' },
+    { id: 'play10games', description: "Complete 10 games total", progress: 0, goal: 10, reward: { type: 'coins', amount: 1500 }, completed: false, category: 'dedication' },
     
     // Advanced Quests  
-    {
-      id: 'survive90',
-      description: "Survive 90 seconds in one run",
-      progress: 0,
-      goal: 90,
-      reward: { type: 'skin', color: '#e91e63', name: 'Elite Pink', boatType: 'submarine' },
-      completed: false,
-      category: 'survival'
-    },
-    {
-      id: 'perfectRun',
-      description: "Complete a game without taking damage",
-      progress: 0,
-      goal: 1,
-      reward: { type: 'skin', color: '#ffeb3b', name: 'Golden Perfection', boatType: 'golden' },
-      completed: false,
-      category: 'skill'
-    },
-    {
-      id: 'hardMode30',
-      description: "Survive 30s in Hard Mode",
-      progress: 0,
-      goal: 30,
-      reward: { type: 'skin', color: '#ff5722', name: 'Hardcore Orange', boatType: 'racer' },
-      completed: false,
-      category: 'challenge'
-    },
-    {
-      id: 'shield10times',
-      description: "Use shield power-up 10 times",
-      progress: 0,
-      goal: 10,
-      reward: { type: 'skin', color: '#00bcd4', name: 'Shield Master', boatType: 'armored' },
-      completed: false,
-      category: 'collection'
-    },
+    { id: 'survive90', description: "Survive 90 seconds in one run", progress: 0, goal: 90, reward: { type: 'coins', amount: 2000 }, completed: false, category: 'survival' },
+    { id: 'perfectRun', description: "Complete a game without taking damage", progress: 0, goal: 1, reward: { type: 'coins', amount: 2500 }, completed: false, category: 'skill' },
+    { id: 'hardMode30', description: "Survive 30s in Hard Mode", progress: 0, goal: 30, reward: { type: 'coins', amount: 3000 }, completed: false, category: 'challenge' },
+    { id: 'shield10times', description: "Use shield power-up 10 times", progress: 0, goal: 10, reward: { type: 'coins', amount: 3500 }, completed: false, category: 'collection' },
     
     // Expert Quests
-    {
-      id: 'survive120',
-      description: "Survive 120 seconds (2 minutes!)",
-      progress: 0,
-      goal: 120,
-      reward: { type: 'skin', color: '#9c27b0', name: 'Time Lord', boatType: 'timeship' },
-      completed: false,
-      category: 'survival'
-    },
-    {
-      id: 'beatBest30',
-      description: "Beat your best score by +30s",
-      progress: 0,
-      goal: 1,
-      reward: { type: 'skin', rainbow: true, name: 'Rainbow Legend', boatType: 'legendary' },
-      completed: false,
-      category: 'achievement'
-    },
-    {
-      id: 'hardMode60',
-      description: "Survive 60s in Hard Mode",
-      progress: 0,
-      goal: 60,
-      reward: { type: 'skin', color: '#212121', name: 'Shadow Phantom', boatType: 'stealth' },
-      completed: false,
-      category: 'challenge'
-    },
-    {
-      id: 'powerup50',
-      description: "Collect 50 power-ups (lifetime)",
-      progress: 0,
-      goal: 50,
-      reward: { type: 'skin', color: '#00e676', name: 'Power Collector', boatType: 'energy' },
-      completed: false,
-      category: 'collection'
-    },
+    { id: 'survive120', description: "Survive 120 seconds (2 minutes!)", progress: 0, goal: 120, reward: { type: 'coins', amount: 4000 }, completed: false, category: 'survival' },
+    { id: 'beatBest30', description: "Beat your best score by +30s", progress: 0, goal: 1, reward: { type: 'coins', amount: 5000 }, completed: false, category: 'achievement' },
+    { id: 'hardMode60', description: "Survive 60s in Hard Mode", progress: 0, goal: 60, reward: { type: 'coins', amount: 6000 }, completed: false, category: 'challenge' },
+    { id: 'powerup50', description: "Collect 50 power-ups (lifetime)", progress: 0, goal: 50, reward: { type: 'coins', amount: 7000 }, completed: false, category: 'collection' },
     
     // Master Quests
-    {
-      id: 'avoid200obstacles',
-      description: "Avoid 200 obstacles (lifetime)",
-      progress: 0,
-      goal: 200,
-      reward: { type: 'skin', color: '#1de9b6', name: 'Evasion Expert', boatType: 'phantom' },
-      completed: false,
-      category: 'skill'
-    },
-    {
-      id: 'survive180',
-      description: "Survive 180 seconds (3 minutes!)",
-      progress: 0,
-      goal: 180,
-      reward: { type: 'skin', color: '#f44336', name: 'Ultimate Survivor', boatType: 'ultimate' },
-      completed: false,
-      category: 'survival'
-    },
-    {
-      id: 'play50games',
-      description: "Complete 50 games total",
-      progress: 0,
-      goal: 50,
-      reward: { type: 'skin', color: '#ff9800', name: 'Master Sailor', boatType: 'flagship' },
-      completed: false,
-      category: 'dedication'
-    }
+    { id: 'avoid200obstacles', description: "Avoid 200 obstacles (lifetime)", progress: 0, goal: 200, reward: { type: 'coins', amount: 8000 }, completed: false, category: 'skill' },
+    { id: 'survive180', description: "Survive 180 seconds (3 minutes!)", progress: 0, goal: 180, reward: { type: 'coins', amount: 9000 }, completed: false, category: 'survival' },
+    { id: 'play50games', description: "Complete 50 games total", progress: 0, goal: 50, reward: { type: 'coins', amount: 10000 }, completed: false, category: 'dedication' }
   ];
 
   // Load quest progress
@@ -719,7 +678,7 @@
     questNotification.innerHTML = `
       <div style="font-size: 18px; margin-bottom: 5px;">🎉 QUEST COMPLETE! 🎉</div>
       <div style="font-size: 14px; margin-bottom: 3px;">${questName}</div>
-      <div style="font-size: 12px; opacity: 0.9;">Unlocked: ${rewardName}</div>
+      <div style="font-size: 12px; opacity: 0.9;">💰 Reward: ${rewardName}</div>
     `;
     questNotification.classList.add('show');
     
@@ -779,12 +738,15 @@
           }
         }
         
-        let rewardText = q.reward.name || 'Unknown';
+        let rewardText = `Unspecified Reward`;
+        if (q.reward && q.reward.type === 'coins') {
+            rewardText = `${q.reward.amount} Coins`;
+        }
         
         div.innerHTML = `
           <div class="quest-title">${q.description}</div>
           <div class="quest-progress">${progText}</div>
-          <div class="quest-reward">🏆 Reward: ${rewardText}</div>
+          <div class="quest-reward">💰 Reward: ${rewardText}</div>
         `;
         questList.appendChild(div);
       });
@@ -803,6 +765,7 @@
     skinsMenu.style.display = 'none';
     restartMenu.style.display = 'none';
     pauseMenu.style.display = 'none';
+    shopMenu.style.display = 'none';
     canvas.style.display = 'none';
     pauseBtn.style.display = 'none';
     difficultyIndicator.style.display = 'none';
@@ -1014,7 +977,8 @@
     }
     
     // Different boat types drawing
-    if(boatSkins[currentSkinIndex].rainbow){
+    const currentSkin = boatSkins[currentSkinIndex];
+    if(currentSkin.rainbow){
       let grad = ctx.createLinearGradient(-boat.w/2, 0, boat.w/2, 0);
       grad.addColorStop(0, "red");
       grad.addColorStop(0.2, "orange");
@@ -1027,7 +991,7 @@
       ctx.fillStyle = boat.color;
     }
     
-    const boatType = boatSkins[currentSkinIndex].boatType || 'classic';
+    const boatType = currentSkin.boatType || 'classic';
     
     switch(boatType) {
       case 'speedboat':
@@ -1182,12 +1146,15 @@
 
   let animationFrameId;
   let gameStartLives = maxLives; // Track starting lives for perfect run
+  let coinsGainedThisRun = 0; // NEW: Track coins for this run
 
   function resetGame(){
     lives = maxLives;
     gameStartLives = maxLives;
     distance = 0;
     startTime = Date.now();
+    lastCoinTime = Date.now();
+    coinsGainedThisRun = 0;
     gameOver = false;
     obstacles = [];
     powerUps = [];
@@ -1211,7 +1178,8 @@
     }
     difficultyIndicator.style.display = 'block';
     pauseDuration = 0;
-    hasShield = false;
+    hasShield = hasStartingShield;
+    hasStartingShield = false;
     slowMotionActive = false;
     boat.speed = boat.baseSpeed;
     gamePaused = false;
@@ -1230,6 +1198,7 @@
       localStorage.setItem('boatRacerHighScore', highScore);
     }
     infoHighScore.textContent = `High Score: ${highScore}s`;
+    infoCoins.textContent = `Coins: ${coins}`;
   }
 
   function spawnObstacle(){
@@ -1240,6 +1209,12 @@
   function update(){
     if(gameOver || gamePaused) return;
     const now = Date.now();
+    // NEW: Coin generation based on time
+    if(now - lastCoinTime > 2000) {
+      coins++;
+      saveCoins();
+      lastCoinTime = now;
+    }
     if(now - lastSpawn > spawnInterval && obstacles.length < maxObstacles){
       lastSpawn = now;
       spawnObstacle();
@@ -1314,6 +1289,7 @@
     difficultyMenu.style.display = 'none';
     skinsMenu.style.display = 'none';
     questsMenu.style.display = 'none';
+    shopMenu.style.display = 'none';
     restartMenu.style.display = 'none';
     pauseMenu.style.display = 'none';
     canvas.style.display = 'none';
@@ -1327,6 +1303,7 @@
     difficultyMenu.style.display = 'none';
     skinsMenu.style.display = 'block';
     questsMenu.style.display = 'none';
+    shopMenu.style.display = 'none';
     restartMenu.style.display = 'none';
     pauseMenu.style.display = 'none';
     canvas.style.display = 'none';
@@ -1338,6 +1315,7 @@
     difficultyMenu.style.display = 'block';
     skinsMenu.style.display = 'none';
     questsMenu.style.display = 'none';
+    shopMenu.style.display = 'none';
     restartMenu.style.display = 'none';
     pauseMenu.style.display = 'none';
     canvas.style.display = 'none';
@@ -1352,6 +1330,7 @@
     difficultyMenu.style.display = 'none';
     skinsMenu.style.display = 'none';
     questsMenu.style.display = 'none';
+    shopMenu.style.display = 'none';
     restartMenu.style.display = 'block';
     pauseMenu.style.display = 'none';
     canvas.style.display = 'none';
@@ -1369,11 +1348,111 @@
     difficultyMenu.style.display = 'none';
     skinsMenu.style.display = 'none';
     questsMenu.style.display = 'none';
+    shopMenu.style.display = 'none';
     restartMenu.style.display = 'none';
     pauseMenu.style.display = 'none';
     canvas.style.display = 'block';
     pauseBtn.style.display = 'block';
     difficultyIndicator.style.display = 'block';
+  }
+  
+  // NEW: Shop Functions
+  function showShopMenu() {
+    menu.style.display = 'none';
+    shopMenu.style.display = 'block';
+    skinsMenu.style.display = 'none';
+    questsMenu.style.display = 'none';
+    difficultyMenu.style.display = 'none';
+    restartMenu.style.display = 'none';
+    pauseMenu.style.display = 'none';
+    canvas.style.display = 'none';
+    pauseBtn.style.display = 'none';
+    difficultyIndicator.style.display = 'none';
+    saveCoins(); // Update coin display
+    renderShopItems();
+  }
+
+  function renderShopItems() {
+    shopItemsDiv.innerHTML = "";
+    
+    shopItems.forEach(item => {
+      const div = document.createElement('div');
+      div.className = 'shop-item';
+      
+      const details = document.createElement('div');
+      details.className = 'item-details';
+      details.innerHTML = `
+        <div class="item-title">${item.name}</div>
+        <div class="item-description">${item.desc || `Unlock the ${item.name} boat skin.`}</div>
+      `;
+      div.appendChild(details);
+      
+      const priceDiv = document.createElement('div');
+      priceDiv.className = 'item-price';
+      priceDiv.innerHTML = `${item.cost} Coins`;
+      
+      const buyBtn = document.createElement('button');
+      if (item.type === 'skin') {
+        const skin = boatSkins.find(s => s.name === item.skinData.name);
+        if (skin && skin.unlocked) {
+            buyBtn.textContent = "Owned";
+            buyBtn.disabled = true;
+            div.style.filter = "grayscale(50%)";
+        } else {
+            buyBtn.textContent = "Buy";
+            if (coins < item.cost) {
+              buyBtn.disabled = true;
+            }
+        }
+      } else {
+        buyBtn.textContent = "Buy";
+        if (coins < item.cost) {
+          buyBtn.disabled = true;
+        }
+      }
+
+      buyBtn.addEventListener('click', () => buyItem(item));
+      priceDiv.appendChild(buyBtn);
+      
+      div.appendChild(priceDiv);
+      shopItemsDiv.appendChild(div);
+    });
+  }
+
+  function buyItem(item) {
+    if (coins >= item.cost) {
+      coins -= item.cost;
+      saveCoins();
+      
+      switch(item.type) {
+        case 'health':
+          if (lives < maxLives) {
+            lives++;
+            updateHearts();
+            alert("Health Boost purchased! One life has been restored.");
+          } else {
+            alert("You already have full health!");
+            coins += item.cost; // Refund coins
+            saveCoins();
+          }
+          break;
+        case 'shield':
+          hasStartingShield = true;
+          alert("Starting Shield purchased! It will be active at the beginning of your next run.");
+          break;
+        case 'skin':
+          const skinToUnlock = boatSkins.find(s => s.name === item.skinData.name);
+          if (skinToUnlock) {
+            skinToUnlock.unlocked = true;
+            saveSkins();
+            alert(`${item.name} skin unlocked! You can now select it in the Skins menu.`);
+          }
+          break;
+      }
+      renderShopItems();
+    } else {
+      alert("Not enough coins!");
+    }
   }
 
   function initSkinButtons(){
@@ -1386,15 +1465,25 @@
       } else {
         btn.style.background = skin.color;
       }
+      
       if(idx === currentSkinIndex) btn.classList.add('selected');
       btn.title = skin.name;
-      btn.addEventListener('click', () => {
-        currentSkinIndex = idx;
-        skinOptionsDiv.querySelectorAll('button').forEach(b => b.classList.remove('selected'));
-        btn.classList.add('selected');
-        boat.color = skin.color;
-        resetBoat();
-      });
+      
+      const isLocked = skin.unlocked === false;
+      if (isLocked) {
+        btn.style.filter = "grayscale(100%)";
+        const shopItem = shopItems.find(item => item.type === 'skin' && item.skinData.name === skin.name);
+        btn.title = `Locked: ${shopItem ? shopItem.cost : '?'} coins`;
+      } else {
+        btn.addEventListener('click', () => {
+          currentSkinIndex = idx;
+          skinOptionsDiv.querySelectorAll('button').forEach(b => b.classList.remove('selected'));
+          btn.classList.add('selected');
+          boat.color = skin.color;
+          resetBoat();
+        });
+      }
+      
       skinOptionsDiv.appendChild(btn);
     });
   }
@@ -1435,6 +1524,8 @@
     togglePause();
     showMainMenu();
   });
+  shopBtn.addEventListener('click', showShopMenu);
+  shopBackBtn.addEventListener('click', showMainMenu);
 
   // QUEST SYSTEM tracking and rewards
   function checkQuestsAtEnd(elapsed) {
@@ -1449,8 +1540,6 @@
     if(difficulty === 'hard') {
       gameStats.hardModeWins++;
     }
-    
-    let completedQuests = [];
     
     quests.forEach(q => {
       if(q.completed) return;
@@ -1530,8 +1619,9 @@
       
       if(questCompleted && !q.completed) {
         q.completed = true;
-        completedQuests.push(q);
-        unlockSkin(q.reward, q.description);
+        coins += q.reward.amount;
+        saveCoins();
+        showQuestNotification(q.description, `${q.reward.amount} Coins`);
       }
     });
     
@@ -1550,26 +1640,15 @@
         q.progress = gameStats.totalPowerUps;
         if(gameStats.totalPowerUps >= q.goal && !q.completed) {
           q.completed = true;
-          unlockSkin(q.reward, q.description);
+          coins += q.reward.amount;
+          saveCoins();
+          showQuestNotification(q.description, `${q.reward.amount} Coins`);
         }
       }
     });
     
     saveQuests();
     saveStats();
-  }
-  
-  function unlockSkin(reward, questDescription){
-    const newSkin = {
-      color: reward.color, 
-      name: reward.name, 
-      rainbow: reward.rainbow,
-      boatType: reward.boatType || 'classic'
-    };
-    
-    boatSkins.push(newSkin);
-    saveSkins();
-    showQuestNotification(questDescription, reward.name);
   }
 
   // AUTO-PAUSE WHEN TAB OR APP BECOMES HIDDEN
