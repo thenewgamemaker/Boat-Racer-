@@ -317,14 +317,14 @@
     position: fixed;
     left: 0;
     right: 0;
-    bottom: 0;
+    top: 0; /* Changed from bottom to top */
     height: 60px;
     background: #191919;
     display: flex;
     justify-content: center;
     align-items: center;
     z-index: 5000;
-    box-shadow: 0 -2px 16px #000a;
+    box-shadow: 0 2px 16px #000a; /* Changed from -2px to 2px */
   }
   #questNotification {
     position: fixed;
@@ -374,6 +374,14 @@
 </head>
 <body>
 <div id="mainContent">
+  <div id="adBanner">
+    <ins class="adsbygoogle"
+       style="display:block"
+       data-ad-client="ca-pub-4568215894032054"
+       data-ad-slot="1234567890"
+       data-ad-format="auto"
+       data-full-width-responsive="true"></ins>
+  </div>
   <div id="info">
     <div id="hearts"></div>
     <div id="time">Time: 0s</div>
@@ -438,25 +446,17 @@
   </div>
   <canvas id="gameCanvas"></canvas>
 </div>
-
-<div id="adBanner">
-  <ins class="adsbygoogle"
-       style="display:block"
-       data-ad-client="ca-pub-4568215894032054"
-       data-ad-slot="1234567890"
-       data-ad-format="auto"
-       data-full-width-responsive="true"></ins>
-</div>
-
 <script>
 (() => {
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
+  
   function resize(){
     const adBanner = document.getElementById('adBanner');
     const adHeight = adBanner ? adBanner.offsetHeight : 0;
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight - adHeight;
+    canvas.style.marginTop = `${adHeight}px`; // Add margin to push canvas down
   }
   resize();
   window.addEventListener('resize', resize);
