@@ -224,6 +224,8 @@
     background: rgba(0,100,150,0.3);
     font-size: 1.0em;
     box-shadow: 0 0 8px #0ff5;
+    position: relative;
+    overflow: hidden;
   }
   .item-details {
     text-align: left;
@@ -383,6 +385,37 @@
     color: #ffd700;
     text-shadow: 0 0 10px #ffea00;
   }
+  #purchaseEffect {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw; height: 100vh;
+    background: radial-gradient(circle at center, rgba(0, 255, 247, 0.8) 0%, rgba(0, 255, 247, 0) 70%);
+    pointer-events: none;
+    opacity: 0;
+    transform: scale(0);
+    transition: all 0.4s ease-out;
+    z-index: 5000;
+  }
+  #purchaseEffect.active {
+    opacity: 1;
+    transform: scale(1.5);
+  }
+  #purchaseEffect::before {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 150vw; height: 150vh;
+    background: radial-gradient(circle at center, #00fff7 0%, #00fff700 80%);
+    animation: pulseEffect 0.8s ease-in-out forwards;
+    transform: translate(-50%, -50%) scale(0);
+    opacity: 0;
+    will-change: transform, opacity;
+  }
+  @keyframes pulseEffect {
+    0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+    50% { transform: translate(-50%, -50%) scale(1); opacity: 0.5; }
+    100% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; }
+  }
 </style>
 </head>
 <body>
@@ -403,6 +436,7 @@
   </div>
   <div id="difficultyIndicator"></div>
   <div id="questNotification"></div>
+  <div id="purchaseEffect"></div>
   <div id="menu">
     <h1>Boat Racer</h1>
     <button id="playBtn">Play</button><br/>
@@ -504,6 +538,7 @@
   const difficultyOptions = document.querySelectorAll('.difficulty-option');
   const difficultyIndicator = document.getElementById('difficultyIndicator');
   const questNotification = document.getElementById('questNotification');
+  const purchaseEffect = document.getElementById('purchaseEffect');
 
   // QUEST System DOM
   const questsBtn = document.getElementById('questsBtn');
@@ -655,31 +690,39 @@
     boat.speed = boat.baseSpeed;
   }
 
-  // NEW: Completely new quests with reasonable coin rewards
+  // UPDATED: Combined old and new quests
   const quests = [
-    // Daily/Starter Quests
-    { id: 'play1game', description: "Complete 1 game", progress: 0, goal: 1, reward: { type: 'coins', amount: 50 }, completed: false, category: 'starter' },
-    { id: 'collect1powerup', description: "Collect a power-up", progress: 0, goal: 1, reward: { type: 'coins', amount: 100 }, completed: false, category: 'starter' },
-    { id: 'survive15', description: "Survive for 15 seconds", progress: 0, goal: 15, reward: { type: 'coins', amount: 150 }, completed: false, category: 'starter' },
+    // Old Quests (re-tuned)
+    { id: 'survive_10s', description: "Survive for 10 seconds", progress: 0, goal: 10, reward: { type: 'coins', amount: 50 }, completed: false, category: 'rookie' },
+    { id: 'survive_30s', description: "Survive for 30 seconds", progress: 0, goal: 30, reward: { type: 'coins', amount: 150 }, completed: false, category: 'rookie' },
+    { id: 'dodge_20_obstacles', description: "Avoid 20 obstacles", progress: 0, goal: 20, reward: { type: 'coins', amount: 200 }, completed: false, category: 'rookie' },
+    { id: 'dodge_50_obstacles', description: "Avoid 50 obstacles", progress: 0, goal: 50, reward: { type: 'coins', amount: 400 }, completed: false, category: 'rookie' },
+    { id: 'collect_1_powerup', description: "Collect 1 power-up", progress: 0, goal: 1, reward: { type: 'coins', amount: 100 }, completed: false, category: 'rookie' },
+    { id: 'collect_5_powerups', description: "Collect 5 power-ups", progress: 0, goal: 5, reward: { type: 'coins', amount: 300 }, completed: false, category: 'rookie' },
+    { id: 'play_10_games', description: "Play 10 total games", progress: 0, goal: 10, reward: { type: 'coins', amount: 250 }, completed: false, category: 'rookie' },
+    { id: 'no_damage_30s', description: "Survive 30s without damage", progress: 0, goal: 30, reward: { type: 'coins', amount: 500 }, completed: false, category: 'rookie' },
     
-    // Intermediate Quests
-    { id: 'hardmode1win', description: "Win 1 game on Hard Mode", progress: 0, goal: 1, reward: { type: 'coins', amount: 500 }, completed: false, category: 'hard mode' },
-    { id: 'dodge10obstacles', description: "Avoid 10 obstacles in one run", progress: 0, goal: 10, reward: { type: 'coins', amount: 400 }, completed: false, category: 'skill' },
-    { id: 'collect5powerups_int', description: "Collect 5 total power-ups", progress: 0, goal: 5, reward: { type: 'coins', amount: 350 }, completed: false, category: 'collection' },
-    { id: 'survive45', description: "Survive for 45 seconds", progress: 0, goal: 45, reward: { type: 'coins', amount: 600 }, completed: false, category: 'survival' },
-
-    // Advanced Quests
-    { id: 'perfectrun_30s', description: "Survive 30s without taking damage", progress: 0, goal: 1, reward: { type: 'coins', amount: 800 }, completed: false, category: 'skill' },
-    { id: 'hardmode3wins', description: "Win 3 games on Hard Mode", progress: 0, goal: 3, reward: { type: 'coins', amount: 1000 }, completed: false, category: 'hard mode' },
-    { id: 'use3shields', description: "Use 3 shield power-ups", progress: 0, goal: 3, reward: { type: 'coins', amount: 750 }, completed: false, category: 'collection' },
-    { id: 'survive120', description: "Survive for 120 seconds", progress: 0, goal: 120, reward: { type: 'coins', amount: 1200 }, completed: false, category: 'survival' },
-
-    // Mastery Quests
-    { id: 'beatbestscore_15s', description: "Beat your high score by 15s", progress: 0, goal: 1, reward: { type: 'coins', amount: 1500 }, completed: false, category: 'mastery', prerequisite: 'highScoreOver300' },
-    { id: 'collect25powerups_life', description: "Collect 25 power-ups (lifetime)", progress: 0, goal: 25, reward: { type: 'coins', amount: 2000 }, completed: false, category: 'collection' },
-    { id: 'hardmode5wins', description: "Win 5 games on Hard Mode", progress: 0, goal: 5, reward: { type: 'coins', amount: 2500 }, completed: false, category: 'hard mode' },
-    { id: 'survive180', description: "Survive for 180 seconds", progress: 0, goal: 180, reward: { type: 'coins', amount: 3000 }, completed: false, category: 'survival' },
-    { id: 'play25games_total', description: "Complete 25 total games", progress: 0, goal: 25, reward: { type: 'coins', amount: 3500 }, completed: false, category: 'dedication' }
+    // New Quests (Re-categorized for flow)
+    { id: 'survive_60s', description: "Survive for 60 seconds", progress: 0, goal: 60, reward: { type: 'coins', amount: 800 }, completed: false, category: 'intermediate' },
+    { id: 'survive_120s', description: "Survive for 120 seconds", progress: 0, goal: 120, reward: { type: 'coins', amount: 1500 }, completed: false, category: 'intermediate' },
+    { id: 'dodge_100_obstacles', description: "Avoid 100 obstacles", progress: 0, goal: 100, reward: { type: 'coins', amount: 1000 }, completed: false, category: 'intermediate' },
+    { id: 'dodge_200_obstacles', description: "Avoid 200 obstacles", progress: 0, goal: 200, reward: { type: 'coins', amount: 2000 }, completed: false, category: 'intermediate' },
+    { id: 'collect_15_powerups', description: "Collect 15 power-ups", progress: 0, goal: 15, reward: { type: 'coins', amount: 1200 }, completed: false, category: 'intermediate' },
+    { id: 'no_damage_60s', description: "Survive 60s without damage", progress: 0, goal: 60, reward: { type: 'coins', amount: 1500 }, completed: false, category: 'intermediate' },
+    { id: 'play_25_games', description: "Play 25 total games", progress: 0, goal: 25, reward: { type: 'coins', amount: 1800 }, completed: false, category: 'intermediate' },
+    
+    // Hard Mode Quests (re-tuned)
+    { id: 'hardmode_1_win', description: "Win 1 game on Hard Mode", progress: 0, goal: 1, reward: { type: 'coins', amount: 1500 }, completed: false, category: 'expert' },
+    { id: 'hardmode_3_wins', description: "Win 3 games on Hard Mode", progress: 0, goal: 3, reward: { type: 'coins', amount: 2500 }, completed: false, category: 'expert' },
+    { id: 'hardmode_5_wins', description: "Win 5 games on Hard Mode", progress: 0, goal: 5, reward: { type: 'coins', amount: 4000 }, completed: false, category: 'expert' },
+    
+    // Mastery Quests (higher goals)
+    { id: 'survive_300s', description: "Survive for 5 minutes", progress: 0, goal: 300, reward: { type: 'coins', amount: 3500 }, completed: false, category: 'mastery' },
+    { id: 'dodge_500_obstacles', description: "Avoid 500 obstacles", progress: 0, goal: 500, reward: { type: 'coins', amount: 5000 }, completed: false, category: 'mastery' },
+    { id: 'collect_50_powerups', description: "Collect 50 power-ups", progress: 0, goal: 50, reward: { type: 'coins', amount: 4500 }, completed: false, category: 'mastery' },
+    { id: 'no_damage_120s', description: "Survive 120s without damage", progress: 0, goal: 120, reward: { type: 'coins', amount: 5000 }, completed: false, category: 'mastery' },
+    { id: 'play_50_games', description: "Play 50 total games", progress: 0, goal: 50, reward: { type: 'coins', amount: 4000 }, completed: false, category: 'mastery' },
+    { id: 'shields_used_25', description: "Use 25 shields", progress: 0, goal: 25, reward: { type: 'coins', amount: 2500 }, completed: false, category: 'mastery' }
   ];
 
   // Load quest progress
@@ -715,21 +758,14 @@
 
     // Group quests by category
     const categories = {
-      'starter': '🚀 Starter Quests',
-      'survival': '⏱️ Survival Quests',
-      'collection': '💎 Collection Quests',
-      'skill': '🎯 Skill Quests',
-      'hard mode': '🔥 Hard Mode Quests',
-      'mastery': '👑 Mastery Quests',
-      'dedication': '🏆 Dedication Quests'
+      'rookie': '🏆 Rookie Quests',
+      'intermediate': '🌟 Intermediate Quests',
+      'expert': '⚡ Expert Quests',
+      'mastery': '👑 Mastery Quests'
     };
 
     Object.entries(categories).forEach(([cat, title]) => {
-      let questsForCategory = quests.filter(q => q.category === cat);
-      if (cat === 'mastery' && highScore <= 300) {
-        questsForCategory = questsForCategory.filter(q => q.id !== 'beatbestscore_15s');
-      }
-
+      const questsForCategory = quests.filter(q => q.category === cat);
       if(questsForCategory.length === 0) return;
 
       const categoryHeader = document.createElement('div');
@@ -757,14 +793,22 @@
         // Special progress display for certain quest types
         if(!q.completed) {
           if(q.id.includes('survive')) {
-            progText = "Progress: Complete a run to update";
-          } else if(q.id.includes('perfectrun')) {
-            progText = "Progress: Complete a flawless run";
-          } else if(q.id.includes('beatbestscore')) {
-            progText = `Progress: Beat high score of ${highScore}s by 15s+`;
+            progText = `Current Best: ${gameStats.longestSurvival}s`;
+          } else if(q.id.includes('dodge')) {
+             progText = `Dodged: ${gameStats.totalObstaclesAvoided}`;
+          } else if(q.id.includes('collect')) {
+             progText = `Collected: ${gameStats.totalPowerUps}`;
+          } else if(q.id.includes('no_damage')) {
+             progText = `Longest Flawless: ${gameStats.longestSurvival}s`;
+          } else if(q.id.includes('hardmode')) {
+             progText = `Wins: ${gameStats.hardModeWins}/${q.goal}`;
+          } else if(q.id.includes('play')) {
+             progText = `Games Played: ${gameStats.totalGamesPlayed}/${q.goal}`;
+          } else if(q.id.includes('shields')) {
+             progText = `Shields Used: ${gameStats.shieldsUsed}/${q.goal}`;
           }
         }
-
+        
         let rewardText = `Unspecified Reward`;
         if (q.reward && q.reward.type === 'coins') {
             rewardText = `${q.reward.amount} Coins`;
@@ -1174,15 +1218,19 @@
   let animationFrameId;
   let gameStartLives = maxLives; // Track starting lives for perfect run
   let coinsGainedThisRun = 0; // NEW: Track coins for this run
+  let obstaclesDodgedThisRun = 0;
+  let hasTakenDamageThisRun = false;
 
   function resetGame(){
     lives = maxLives;
     gameStartLives = maxLives;
+    hasTakenDamageThisRun = false;
     distance = 0;
     startTime = Date.now();
     lastCoinTime = Date.now();
     lastPowerUpSpawnTime = Date.now(); // Reset power-up timer
     coinsGainedThisRun = 0;
+    obstaclesDodgedThisRun = 0;
     gameOver = false;
     obstacles = [];
     powerUps = [];
@@ -1258,6 +1306,7 @@
       if(o.y - o.size/2 > canvas.height){
         obstacles.splice(i, 1);
         distance += 100;
+        obstaclesDodgedThisRun++;
         gameStats.totalObstaclesAvoided++;
       } else if(isCollide(boat, o.getBounds())){
         obstacles.splice(i, 1);
@@ -1266,6 +1315,7 @@
           updatePowerUpIndicators();
         } else {
           lives--;
+          hasTakenDamageThisRun = true;
           updateHearts();
           triggerFlash();
           if(lives <= 0) {
@@ -1446,11 +1496,19 @@
       shopItemsDiv.appendChild(div);
     });
   }
+  
+  function triggerPurchaseEffect() {
+    purchaseEffect.classList.add('active');
+    setTimeout(() => {
+      purchaseEffect.classList.remove('active');
+    }, 800);
+  }
 
   function buyItem(item) {
     if (coins >= item.cost) {
       coins -= item.cost;
       saveCoins();
+      triggerPurchaseEffect();
 
       switch(item.type) {
         case 'health':
@@ -1558,27 +1616,18 @@
   // QUEST SYSTEM tracking and rewards
   function checkQuestsAtEnd(elapsed) {
     gameStats.totalGamesPlayed++;
-
+    saveStats();
+    
     // Check if it was a perfect run (no damage taken)
-    if(lives === gameStartLives) {
-      gameStats.perfectRuns++;
+    const isPerfectRun = !hasTakenDamageThisRun;
+    if(isPerfectRun) {
+        // Track longest perfect run
+        gameStats.perfectRuns = Math.max(gameStats.perfectRuns, elapsed);
     }
 
-    // Check hard mode specific achievements
-    if(difficulty === 'hard') {
-      // Find the hard mode quests and update them
-      const hardModeQuests = quests.filter(q => q.id.includes('hardmode'));
-      hardModeQuests.forEach(q => {
-        if (!q.completed) {
-          q.progress = (q.progress || 0) + 1;
-          if (q.progress >= q.goal) {
-            q.completed = true;
-            coins += q.reward.amount;
-            saveCoins();
-            showQuestNotification(q.description, `${q.reward.amount} Coins`);
-          }
-        }
-      });
+    // Hard mode win check
+    if(difficulty === 'hard' && !gameOver) {
+        gameStats.hardModeWins++;
     }
 
     quests.forEach(q => {
@@ -1586,54 +1635,48 @@
 
       let questCompleted = false;
 
-      // Skip mastery quest check if prerequisite not met
-      if (q.prerequisite === 'highScoreOver300' && highScore <= 300) {
-        return;
-      }
-
       switch(q.id) {
-        case 'play1game':
-          if(gameStats.totalGamesPlayed >= 1) {
-            q.progress = gameStats.totalGamesPlayed;
-            questCompleted = true;
-          }
+        case 'play_10_games':
+        case 'play_25_games':
+        case 'play_50_games':
+          q.progress = gameStats.totalGamesPlayed;
+          if (q.progress >= q.goal) questCompleted = true;
           break;
-        case 'survive15':
-        case 'survive45':
-        case 'survive120':
-        case 'survive180':
-          const survivalTime = parseInt(q.id.replace('survive', ''));
-          if(elapsed >= survivalTime) {
+        case 'survive_10s':
+        case 'survive_30s':
+        case 'survive_60s':
+        case 'survive_120s':
+        case 'survive_300s':
+          if(elapsed >= q.goal) {
             q.progress = elapsed;
             questCompleted = true;
           }
           break;
-        case 'dodge10obstacles':
-          // This quest should track obstacles avoided in a single run
-          const obstaclesDodgedThisRun = gameStats.totalObstaclesAvoided - (q.lastObsCount || 0);
-          q.progress = obstaclesDodgedThisRun;
-          if (q.progress >= q.goal) {
-             questCompleted = true;
-          }
+        case 'dodge_20_obstacles':
+        case 'dodge_50_obstacles':
+        case 'dodge_100_obstacles':
+        case 'dodge_200_obstacles':
+        case 'dodge_500_obstacles':
+          q.progress = gameStats.totalObstaclesAvoided;
+          if (q.progress >= q.goal) questCompleted = true;
           break;
-        case 'perfectrun_30s':
-          if(lives === gameStartLives && elapsed >= 30) {
-            q.progress = 1;
+        case 'no_damage_30s':
+        case 'no_damage_60s':
+        case 'no_damage_120s':
+          if(isPerfectRun && elapsed >= q.goal) {
+            q.progress = elapsed;
             questCompleted = true;
           }
           break;
-        case 'beatbestscore_15s':
-          const previousBest = parseInt(localStorage.getItem('boatRacerHighScore') || '0');
-          if(elapsed >= previousBest + 15 && previousBest > 0) {
-            q.progress = 1;
-            questCompleted = true;
-          }
+        case 'hardmode_1_win':
+        case 'hardmode_3_wins':
+        case 'hardmode_5_wins':
+          q.progress = gameStats.hardModeWins;
+          if (q.progress >= q.goal) questCompleted = true;
           break;
-        case 'play25games_total':
-          q.progress = gameStats.totalGamesPlayed;
-          if(gameStats.totalGamesPlayed >= q.goal) {
-            questCompleted = true;
-          }
+        case 'shields_used_25':
+          q.progress = gameStats.shieldsUsed;
+          if (q.progress >= q.goal) questCompleted = true;
           break;
       }
 
@@ -1644,9 +1687,6 @@
         showQuestNotification(q.description, `${q.reward.amount} Coins`);
       }
     });
-    
-    // Store last obstacle count for dodge quest
-    quests.find(q => q.id === 'dodge10obstacles').lastObsCount = gameStats.totalObstaclesAvoided;
 
     saveQuests();
     saveStats();
@@ -1654,12 +1694,13 @@
 
   function onPowerupCollected(){
     gameStats.totalPowerUps++;
+    saveStats();
 
     // Check power-up related quests immediately
     quests.forEach(q => {
       if(q.completed) return;
 
-      if(q.id === 'collect1powerup' || q.id === 'collect5powerups_int' || q.id === 'collect25powerups_life') {
+      if(q.id.includes('collect_') && q.id.includes('powerups')) {
         q.progress = gameStats.totalPowerUps;
         if(gameStats.totalPowerUps >= q.goal && !q.completed) {
           q.completed = true;
@@ -1667,14 +1708,6 @@
           saveCoins();
           showQuestNotification(q.description, `${q.reward.amount} Coins`);
         }
-      } else if (q.id === 'use3shields') {
-          q.progress = gameStats.shieldsUsed;
-          if(gameStats.shieldsUsed >= q.goal && !q.completed) {
-            q.completed = true;
-            coins += q.reward.amount;
-            saveCoins();
-            showQuestNotification(q.description, `${q.reward.amount} Coins`);
-          }
       }
     });
 
