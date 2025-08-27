@@ -308,7 +308,7 @@
   }
   .power-up-icon.shield { background: rgba(0, 200, 255, 0.7); }
   .power-up-icon.slow { background: rgba(255, 100, 0, 0.7); }
-  .power-up-icon.speed { background: rgba(0, 255, 100, 0.7); }
+  .power-up-icon.life { background: rgba(0, 255, 100, 0.7); }
   /* NEW: Updated difficulty indicator position */
   #difficultyIndicator {
     position: fixed;
@@ -455,7 +455,7 @@
   <div class="power-up-indicator">
     <div class="power-up-icon shield" title="Shield">🛡️</div>
     <div class="power-up-icon slow" title="Slow Motion">🐌</div>
-    <div class="power-up-icon speed" title="Health Boost">❤️</div>
+    <div class="power-up-icon life" title="Health Boost">❤️</div>
   </div>
   <canvas id="gameCanvas"></canvas>
 </div>
@@ -534,9 +534,9 @@
   let difficulty = 'easy';
   
   // FIX: Redesigned power-up spawning logic for reliability
-  let powerUpSpawnInterval = 10000; // Spawn a power-up every 10 seconds
+  let powerUpSpawnInterval = 3000; // Spawn a power-up every 3 seconds
   let lastPowerUpSpawnTime = 0;
-  const powerUpTypeChances = { shield: 0.4, slow: 0.4, life: 0.2 }; // Renamed 'speed' to 'life' to match power-up class
+  const powerUpTypeChances = { shield: 0.4, slow: 0.4, life: 0.2 };
   
   let flashing = false;
   let flashTime = 0;
@@ -675,7 +675,7 @@
     { id: 'survive120', description: "Survive for 120 seconds", progress: 0, goal: 120, reward: { type: 'coins', amount: 1200 }, completed: false, category: 'survival' },
 
     // Mastery Quests
-    { id: 'beatbestscore_15s', description: "Beat your high score by 15s", progress: 0, goal: 1, reward: { type: 'coins', amount: 1500 }, completed: false, category: 'mastery' },
+    { id: 'beatbestscore_15s', description: "Beat your high score by 15s", progress: 0, goal: 1, reward: { type: 'coins', amount: 1500 }, completed: false, category: 'mastery', prerequisite: 'highScoreOver300' },
     { id: 'collect25powerups_life', description: "Collect 25 power-ups (lifetime)", progress: 0, goal: 25, reward: { type: 'coins', amount: 2000 }, completed: false, category: 'collection' },
     { id: 'hardmode5wins', description: "Win 5 games on Hard Mode", progress: 0, goal: 5, reward: { type: 'coins', amount: 2500 }, completed: false, category: 'hard mode' },
     { id: 'survive180', description: "Survive for 180 seconds", progress: 0, goal: 180, reward: { type: 'coins', amount: 3000 }, completed: false, category: 'survival' },
@@ -725,8 +725,12 @@
     };
 
     Object.entries(categories).forEach(([cat, title]) => {
-      const categoryQuests = quests.filter(q => q.category === cat);
-      if(categoryQuests.length === 0) return;
+      let questsForCategory = quests.filter(q => q.category === cat);
+      if (cat === 'mastery' && highScore <= 300) {
+        questsForCategory = questsForCategory.filter(q => q.id !== 'beatbestscore_15s');
+      }
+
+      if(questsForCategory.length === 0) return;
 
       const categoryHeader = document.createElement('div');
       categoryHeader.style.cssText = `
@@ -742,7 +746,7 @@
       categoryHeader.textContent = title;
       questList.appendChild(categoryHeader);
 
-      categoryQuests.forEach(q=>{
+      questsForCategory.forEach(q=>{
         const div = document.createElement('div');
         div.className = `quest${q.completed ? ' completed' : ''}`;
 
@@ -1135,7 +1139,7 @@
       else if (rand < powerUpTypeChances.shield + powerUpTypeChances.slow) type = 'slow';
       else type = 'life';
       const x = Math.random() * (canvas.width - 60) + 30;
-      powerUps.push(new PowerUp(x, -50, type));
+      powerUps.push(new PowerUp(type, x, -50));
       lastPowerUpSpawnTime = now;
     }
   }
@@ -1188,7 +1192,7 @@
       spawnInterval = 1800;
       obstacleSpeed = 4.0;
       maxObstacles = 5;
-      powerUpSpawnInterval = 8000; // Shorter interval for hard mode
+      powerUpSpawnInterval = 3000; // Shorter interval for hard mode
       difficultyIndicator.textContent = "HARD MODE";
       difficultyIndicator.className = "hard";
     }
@@ -1196,7 +1200,7 @@
       spawnInterval = 2500;
       obstacleSpeed = 2.5;
       maxObstacles = 3;
-      powerUpSpawnInterval = 10000; // Default interval for easy mode
+      powerUpSpawnInterval = 3000; // Default interval for easy mode
       difficultyIndicator.textContent = "EASY MODE";
       difficultyIndicator.className = "easy";
     }
@@ -1243,6 +1247,7 @@
       lastSpawn = now;
       spawnObstacle();
     }
+    // FIX: Calling spawnPowerUp() in the main update loop
     spawnPowerUp();
     if(now - lastDifficultyIncrease > difficultyIncreaseInterval){
       lastDifficultyIncrease = now;
@@ -1580,6 +1585,11 @@
       if(q.completed) return;
 
       let questCompleted = false;
+
+      // Skip mastery quest check if prerequisite not met
+      if (q.prerequisite === 'highScoreOver300' && highScore <= 300) {
+        return;
+      }
 
       switch(q.id) {
         case 'play1game':
