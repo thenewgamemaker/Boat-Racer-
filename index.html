@@ -532,8 +532,12 @@
   let obstacleSpeed = 2.5;
   let maxObstacles = 3;
   let difficulty = 'easy';
-  let powerUpSpawnChance = 0.006;
-  const powerUpTypeChances = { shield: 0.4, slow: 0.4, speed: 0.2 };
+  
+  // FIX: Redesigned power-up spawning logic for reliability
+  let powerUpSpawnInterval = 10000; // Spawn a power-up every 10 seconds
+  let lastPowerUpSpawnTime = 0;
+  const powerUpTypeChances = { shield: 0.4, slow: 0.4, life: 0.2 }; // Renamed 'speed' to 'life' to match power-up class
+  
   let flashing = false;
   let flashTime = 0;
   let flashDuration = 300;
@@ -842,7 +846,7 @@
           this.color = '#fbc531';
           this.symbol = '🐌';
           break;
-        case 'speed':
+        case 'life':
           this.color = '#4cd137';
           this.symbol = '❤️';
           break;
@@ -888,7 +892,7 @@
           slowMotionActive = true;
           powerUpEndTime.slow = now + powerUpDuration;
           break;
-        case 'speed':
+        case 'life':
           if (lives < maxLives) {
             lives++;
             updateHearts();
@@ -1120,22 +1124,26 @@
     }
     updatePowerUpIndicators();
   }
+  
+  // FIX: This is the new power-up spawn logic
   function spawnPowerUp() {
-    if(Math.random() < powerUpSpawnChance && powerUps.length < 1) {
+    const now = Date.now();
+    if (now - lastPowerUpSpawnTime > powerUpSpawnInterval) {
       const rand = Math.random();
       let type;
       if (rand < powerUpTypeChances.shield) type = 'shield';
       else if (rand < powerUpTypeChances.shield + powerUpTypeChances.slow) type = 'slow';
-      else type = 'speed';
+      else type = 'life';
       const x = Math.random() * (canvas.width - 60) + 30;
       powerUps.push(new PowerUp(x, -50, type));
+      lastPowerUpSpawnTime = now;
     }
   }
+  
   function increaseDifficulty() {
     spawnInterval = Math.max(800, spawnInterval - 100);
     obstacleSpeed += 0.3;
     maxObstacles = Math.min(8, maxObstacles + 1);
-    powerUpSpawnChance = Math.min(0.015, powerUpSpawnChance + 0.001);
   }
 
   // PAUSE / RESUME fix for correct pause duration tracking & prevent negative time
@@ -1169,6 +1177,7 @@
     distance = 0;
     startTime = Date.now();
     lastCoinTime = Date.now();
+    lastPowerUpSpawnTime = Date.now(); // Reset power-up timer
     coinsGainedThisRun = 0;
     gameOver = false;
     obstacles = [];
@@ -1179,7 +1188,7 @@
       spawnInterval = 1800;
       obstacleSpeed = 4.0;
       maxObstacles = 5;
-      powerUpSpawnChance = 0.008;
+      powerUpSpawnInterval = 8000; // Shorter interval for hard mode
       difficultyIndicator.textContent = "HARD MODE";
       difficultyIndicator.className = "hard";
     }
@@ -1187,7 +1196,7 @@
       spawnInterval = 2500;
       obstacleSpeed = 2.5;
       maxObstacles = 3;
-      powerUpSpawnChance = 0.006;
+      powerUpSpawnInterval = 10000; // Default interval for easy mode
       difficultyIndicator.textContent = "EASY MODE";
       difficultyIndicator.className = "easy";
     }
