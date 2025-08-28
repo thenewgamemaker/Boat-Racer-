@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 <title>Retro Boat Racer - Multiplayer Mode</title>
-<script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
+<!-- Replaced Ably with PeerJS -->
 <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
 <style>
   html, body {
@@ -574,12 +574,21 @@
     <button id="pauseToMenuBtn">Main Menu</button>
   </div>
   <div id="waitingMenu">
-    <h2>Finding Opponent...</h2>
-    <div class="loading-spinner"></div>
+    <h2>Multiplayer Setup</h2>
+    <div id="hostOptions">
+      <p>Host a new game or join with a code:</p>
+      <button id="hostGameBtn">Host Game</button>
+      <div id="roomCodeDisplay" style="display: none;"></div>
+    </div>
+    <div id="joinOptions">
+      <p>Or enter a room code to join:</p>
+      <input type="text" id="joinRoomInput" placeholder="Enter room code" maxlength="10">
+      <button id="joinGameBtn">Join Game</button>
+    </div>
     <button id="cancelMultiplayerBtn">Cancel</button>
   </div>
   <div id="winMenu">
-    <h2>Well Done! You Won!</h2>
+    <h2>You Win!</h2>
     <p>Your opponent crashed!</p>
     <button id="winBackBtn">Back to Menu</button>
   </div>
@@ -594,7 +603,6 @@
 </div>
 <script>
 (() => {
-  const ably = new Ably.Realtime('YOUR_ABLY_API_KEY_HERE'); // Replace with your Ably API key (sign up for free at https://ably.com)
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
   function resize(){
@@ -649,10 +657,27 @@
   const cancelMultiplayerBtn = document.getElementById('cancelMultiplayerBtn');
   const winMenu = document.getElementById('winMenu');
   const winBackBtn = document.getElementById('winBackBtn');
+  // New PeerJS multiplayer elements
+  const hostGameBtn = document.getElementById('hostGameBtn');
+  const joinGameBtn = document.getElementById('joinGameBtn');
+  const joinRoomInput = document.getElementById('joinRoomInput');
+  const roomCodeDisplay = document.getElementById('roomCodeDisplay');
+  // QUEST System DOM
+  const questsBtn = document.getElementById('questsBtn');
+  const questsMenu = document.getElementById('questsMenu');
+  const questsBackBtn = document.getElementById('questsBackBtn');
+  const questList = document.getElementById('questList');
+  // Shop DOM
+  const shopBtn = document.getElementById('shopBtn');
+  const shopMenu = document.getElementById('shopMenu');
+  const shopItemsDiv = document.getElementById('shopItems');
+  const shopBackBtn = document.getElementById('shopBackBtn');
+  const shopCoinsDisplay = document.getElementById('shopCoins');
   // Multiplayer variables (PeerJS)
   let peer = null;
   let conn = null;
   let isHost = false;
+  let roomCode = null;
   let multiplayerMode = false;
   let opponentTime = 0;
   let lives = 3;
@@ -1312,56 +1337,84 @@
   let animationFrameId;
   let hasTakenDamageThisRun = false;
   // ===================================================================
-  // PEERJS MULTIPLAYER LOGIC WITH ABLY MATCHMAKING
+  // PEERJS MULTIPLAYER LOGIC
   // ===================================================================
-  function startMatchmaking() {
-    peer = new Peer();
+  // Generates a random room code for sharing
+  function generateRoomCode() {
+    return Math.random().toString(36).substring(2, 8).toUpperCase();
+  }
+  
+  // Initialize PeerJS for hosting a game
+  function hostMultiplayerGame() {
+    isHost = true;
+    roomCode = generateRoomCode();
+    
+    // Create a new Peer with the room code as ID
+    peer = new Peer(roomCode);
+    
     peer.on('open', (id) => {
       console.log('My peer ID is: ' + id);
-      const channel = ably.channels.get('boat-racer-lobby');
-      const isHostChance = Math.random() < 0.5;
-      if (isHostChance) {
-        isHost = true;
-        channel.publish('available-host', {hostId: id});
-        peer.on('connection', (connection) => {
-          if (conn) {
-            connection.close();
-          } else {
-            conn = connection;
-            setupConnectionHandlers();
-          }
+      roomCodeDisplay.textContent = `Room Code: ${roomCode}`;
+      roomCodeDisplay.style.display = 'block';
+      hostGameBtn.style.display = 'none';
+      
+      // Wait for a connection
+      peer.on('connection', (connection) => {
+        conn = connection;
+        setupConnectionHandlers();
+        
+        // Once connected, start the game
+        conn.on('open', () => {
+          console.log('Connection established!');
+          startMultiplayerGame();
         });
-      } else {
-        isHost = false;
-        channel.subscribe('available-host', (msg) => {
-          if (!conn) {
-            const hostId = msg.data.hostId;
-            conn = peer.connect(hostId);
-            setupConnectionHandlers();
-          }
-        });
-        // If no host found in 5 seconds, become host
-        setTimeout(() => {
-          if (!conn) {
-            isHost = true;
-            channel.publish('available-host', {hostId: id});
-            peer.on('connection', (connection) => {
-              if (conn) {
-                connection.close();
-              } else {
-                conn = connection;
-                setupConnectionHandlers();
-              }
-            });
-          }
-        }, 5000);
-      }
+      });
     });
+    
     peer.on('error', (err) => {
       console.error('Peer error:', err);
+      alert('Could not host game. Please try again.');
+      cancelMultiplayer();
     });
   }
+  
+  // Initialize PeerJS for joining a game
+  function joinMultiplayerGame() {
+    const code = joinRoomInput.value.trim().toUpperCase();
+    if (!code) {
+      alert('Please enter a room code');
+      return;
+    }
+    
+    roomCode = code;
+    isHost = false;
+    
+    // Create a new Peer with a random ID
+    peer = new Peer();
+    
+    peer.on('open', (id) => {
+      console.log('My peer ID is: ' + id);
+      
+      // Connect to the host
+      conn = peer.connect(roomCode);
+      setupConnectionHandlers();
+      
+      conn.on('open', () => {
+        console.log('Connection established!');
+        startMultiplayerGame();
+      });
+    });
+    
+    peer.on('error', (err) => {
+      console.error('Peer error:', err);
+      alert('Could not join game. Please check the room code and try again.');
+      cancelMultiplayer();
+    });
+  }
+  
+  // Set up connection event handlers
   function setupConnectionHandlers() {
+    // Handle incoming data
     conn.on('data', (data) => {
       if (data.type === 'player-state') {
         opponentTime = data.time;
@@ -1371,59 +1424,77 @@
           console.log("Opponent crashed. You win!");
           showWinMenu();
         }
+      } else if (data.type === 'start-game') {
+        console.log("Received start signal. Let's race!");
+        startMultiplayerGame();
       }
     });
-    conn.on('open', () => {
-      console.log('Connection established!');
-      startMultiplayerGame();
-    });
+    
+    // Handle connection close
     conn.on('close', () => {
       console.log('Connection closed');
       if (!gameOver) {
-        showWinMenu();
+        alert('Connection to opponent lost');
+        cancelMultiplayer();
       }
     });
+    
+    // Handle connection error
     conn.on('error', (err) => {
       console.error('Connection error:', err);
-      if (!gameOver) {
-        showWinMenu();
-      }
+      alert('Connection error occurred');
+      cancelMultiplayer();
     });
   }
+  
+  // Transitions from the waiting menu to the actual game
   function startMultiplayerGame() {
-    resetGame();
-    multiplayerMode = true;
+    resetGame(); // This will set difficulty and other game params
+    multiplayerMode = true; // Explicitly set mode
     waitingMenu.style.display = 'none';
     showGameCanvas();
     loop();
   }
+  
+  // Sends this player's survival time to the opponent
   function sendPlayerState() {
     if (multiplayerMode && conn && conn.open && !gameOver) {
       const elapsed = Math.floor((Date.now() - startTime - pauseDuration) / 1000);
       conn.send({ type: 'player-state', time: elapsed });
     }
   }
+  
+  // Tells the opponent that this player has lost
   function sendPlayerDied() {
-    if (multiplayerMode && conn && conn.open) {
+     if (multiplayerMode && conn && conn.open) {
       conn.send({ type: 'player-died' });
     }
   }
+  
+  // Shows the "Waiting for Player" menu
   function showWaitingMenu() {
     menu.style.display = 'none';
     difficultyMenu.style.display = 'none';
     waitingMenu.style.display = 'block';
+    roomCodeDisplay.style.display = 'none';
+    hostGameBtn.style.display = 'inline-block';
   }
+  
+  // Shows the "You Win!" screen
   function showWinMenu() {
-    if (gameOver) return;
+    if (gameOver) return; // Prevent running multiple times
     gameOver = true;
     cancelAnimationFrame(animationFrameId);
     winMenu.style.display = 'block';
+    // Hide game elements
     canvas.style.display = 'none';
     pauseBtn.style.display = 'none';
     difficultyIndicator.style.display = 'none';
     multiplayerInfo.style.display = 'none';
-    cancelMultiplayer(false);
+    cancelMultiplayer(false); // Clean up connections without hiding the win menu
   }
+  
+  // Disconnects from PeerJS and cleans up all multiplayer state
   function cancelMultiplayer(shouldShowMenu = true) {
     console.log("Cleaning up multiplayer session.");
     if (conn) {
@@ -1436,9 +1507,9 @@
     conn = null;
     multiplayerMode = false;
     if (shouldShowMenu) {
-      showMainMenu();
+        showMainMenu();
     } else {
-      waitingMenu.style.display = 'none';
+        waitingMenu.style.display = 'none';
     }
   }
   // ===================================================================
@@ -1458,15 +1529,17 @@
     lastDifficultyIncrease = 0;
     maxLives = 3;
     powerUpIndicatorContainer.style.display = 'none';
+    multiplayerMode = false; // Default to single player
     if (difficulty === 'multiplayer') {
+      multiplayerMode = true; // Set multiplayer mode
       spawnInterval = 1800;
       obstacleSpeed = 4.0;
       maxObstacles = 5;
-      lives = 1;
-      maxLives = 1;
-      powerUpSpawnInterval = Number.MAX_SAFE_INTEGER;
+      lives = 3;
+      powerUpSpawnInterval = 3000;
       difficultyIndicator.textContent = "MULTIPLAYER MODE";
       difficultyIndicator.className = "multiplayer";
+      powerUpIndicatorContainer.style.display = 'flex';
       info.style.display = 'none';
       multiplayerInfo.style.display = 'flex';
     }
@@ -1546,7 +1619,8 @@
       lastSpawn = now;
       spawnObstacle();
     }
-    if (difficulty !== 'hardcore' && difficulty !== 'multiplayer') {
+    // Power-ups are disabled in hardcore, but enabled in multiplayer
+    if (difficulty !== 'hardcore') {
       spawnPowerUp();
     }
     if(now - lastDifficultyIncrease > difficultyIncreaseInterval){
@@ -1558,7 +1632,7 @@
       if(o.y - o.size/2 > canvas.height){
         obstacles.splice(i, 1);
         distance += 100;
-        if (!multiplayerMode) {
+        if (!multiplayerMode) { // Stats only for single player
             obstaclesDodgedThisRun++;
             gameStats.totalObstaclesAvoided++;
         }
@@ -1578,7 +1652,7 @@
             if (multiplayerMode) {
               sendPlayerDied();
             }
-            showRestartMenu();
+            showRestartMenu(); // This will show win/loss screen for multiplayer
           }
         }
       }
@@ -1655,7 +1729,7 @@
         finalScoreP.textContent = `You survived for ${elapsed}s.`;
         bestScoreP.style.display = 'none';
         restartBtn.style.display = 'none';
-        cancelMultiplayer(false);
+        cancelMultiplayer(false); // Clean up connections
     } else {
         gameOverTitle.textContent = "Game Over!";
         finalScoreP.textContent = `Your Time: ${elapsed}s`;
@@ -1853,7 +1927,6 @@
   startGameBtn.addEventListener('click', () => {
     if (difficulty === 'multiplayer') {
       showWaitingMenu();
-      startMatchmaking();
     } else {
       resetGame();
       showGameCanvas();
@@ -1884,6 +1957,10 @@
   shopBackBtn.addEventListener('click', showMainMenu);
   cancelMultiplayerBtn.addEventListener('click', cancelMultiplayer);
   winBackBtn.addEventListener('click', showMainMenu);
+  
+  // PeerJS multiplayer event listeners
+  hostGameBtn.addEventListener('click', hostMultiplayerGame);
+  joinGameBtn.addEventListener('click', joinMultiplayerGame);
   
   function checkQuestsAtEnd(elapsed) {
     gameStats.totalGamesPlayed++;
