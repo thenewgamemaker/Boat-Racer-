@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-<title>Boat Racer - Enhanced Quests & Shop</title>
+<title>Retro Boat Racer - Multiplayer Mode</title>
+<script src="https://cdn.ably.io/libraries/ably.min-1.2.js"></script>
 <style>
   html, body {
     margin:0; padding:0; overflow:hidden;
@@ -81,7 +82,13 @@
     box-shadow: 0 0 14px #73c2e9;
     transform: translateY(-3px);
   }
-  #menu, #skinsMenu, #restartMenu, #pauseMenu, #difficultyMenu, #questsMenu, #shopMenu {
+  button:disabled {
+      background: #555;
+      cursor: not-allowed;
+      box-shadow: none;
+      transform: none;
+  }
+  #menu, #skinsMenu, #restartMenu, #pauseMenu, #difficultyMenu, #questsMenu, #shopMenu, #multiplayerMenu, #waitingMenu, #winMenu {
     position: fixed;
     top:50%; left:50%;
     transform: translate(-50%, -50%);
@@ -96,7 +103,7 @@
     user-select:none;
     z-index: 200;
   }
-  #difficultyMenu h1, #questsMenu h2, #shopMenu h2 {
+  #difficultyMenu h1, #questsMenu h2, #shopMenu h2, #multiplayerMenu h2, #waitingMenu h2, #winMenu h2 {
     margin-top: 0;
     font-size: 2.5em;
     text-shadow: 0 0 10px #00fff7;
@@ -135,6 +142,8 @@
   }
   .difficulty-easy .difficulty-title { color: #7cff7c; }
   .difficulty-hard .difficulty-title { color: #ff6b6b; }
+  .difficulty-hardcore .difficulty-title { color: #ff5722; }
+  .difficulty-multiplayer .difficulty-title { color: #9c27b0; }
   #skinsMenu button.skin-btn {
     margin: 5px;
     width: 50px; height: 50px;
@@ -328,6 +337,8 @@
   }
   #difficultyIndicator.easy { color: #7cff7c; }
   #difficultyIndicator.hard { color: #ff6b6b; }
+  #difficultyIndicator.hardcore { color: #ff5722; }
+  #difficultyIndicator.multiplayer { color: #9c27b0; }
   #adBanner {
     position: fixed;
     left: 0;
@@ -416,6 +427,53 @@
     50% { transform: translate(-50%, -50%) scale(1); opacity: 0.5; }
     100% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; }
   }
+  /* Multiplayer specific styles */
+  #multiplayerInfo {
+    position: fixed;
+    top: 70px;
+    left: 10px;
+    right: 10px;
+    height: 50px;
+    display: none;
+    align-items: center;
+    justify-content: space-around;
+    font-weight: bold;
+    font-size: 20px;
+    text-shadow: 0 0 8px #00fff7;
+    pointer-events: none;
+    z-index: 100;
+  }
+  #playerTime {
+    color: #00ff00;
+  }
+  #opponentTime {
+    color: #ff6b6b;
+  }
+  #waitingMenu h2 {
+    color: #9c27b0;
+  }
+  #winMenu h2 {
+    color: #00ff00;
+    font-size: 3em;
+    margin-bottom: 20px;
+  }
+  #winMenu p {
+    font-size: 1.5em;
+    margin-bottom: 30px;
+  }
+  .loading-spinner {
+    width: 40px;
+    height: 40px;
+    margin: 20px auto;
+    border: 4px solid #00fff7;
+    border-radius: 50%;
+    border-top: 4px solid transparent;
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
 </style>
 </head>
 <body>
@@ -433,6 +491,10 @@
     <div id="time">Time: 0s</div>
     <div id="highScore">High Score: 0s</div>
     <div id="coins">Coins: 0</div>
+  </div>
+  <div id="multiplayerInfo">
+    <div id="playerTime">Your Time: 0s</div>
+    <div id="opponentTime">Opponent: 0s</div>
   </div>
   <div id="difficultyIndicator"></div>
   <div id="questNotification"></div>
@@ -454,6 +516,14 @@
       <div class="difficulty-title">Hard Mode</div>
       <div class="difficulty-description">High speed, more obstacles - for the true daredevils!</div>
     </div>
+    <div class="difficulty-option difficulty-hardcore" data-difficulty="hardcore">
+      <div class="difficulty-title">Hardcore Mode</div>
+      <div class="difficulty-description">This game mode has been requested from the community enjoy</div>
+    </div>
+    <div class="difficulty-option difficulty-multiplayer" data-difficulty="multiplayer">
+      <div class="difficulty-title">Peer-to-Peer</div>
+      <div class="difficulty-description">Race against another player in real-time!</div>
+    </div>
     <button id="startGameBtn">Start Game</button>
   </div>
   <div id="skinsMenu">
@@ -473,7 +543,7 @@
     <button id="shopBackBtn">Back</button>
   </div>
   <div id="restartMenu">
-    <h1>Game Over!</h1>
+    <h1 id="gameOverTitle">Game Over!</h1>
     <p id="finalScore">Your Time: 0s</p>
     <p id="bestScore">Best Time: 0s</p>
     <button id="restartBtn">Restart</button><br/>
@@ -483,6 +553,17 @@
     <h1>Game Paused</h1>
     <button id="continueBtn">Continue</button><br/>
     <button id="pauseToMenuBtn">Main Menu</button>
+  </div>
+  <div id="waitingMenu">
+    <h2>Waiting for Player</h2>
+    <p>Looking for another player to join...</p>
+    <div class="loading-spinner"></div>
+    <button id="cancelMultiplayerBtn">Cancel</button>
+  </div>
+  <div id="winMenu">
+    <h2>You Win!</h2>
+    <p>Your opponent crashed!</p>
+    <button id="winBackBtn">Back to Menu</button>
   </div>
   <div id="flashOverlay"></div>
   <button id="pauseBtn">⏸</button>
@@ -497,21 +578,21 @@
 (() => {
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
-
   function resize(){
     const adBanner = document.getElementById('adBanner');
     const info = document.getElementById('info');
+    const multiplayerInfo = document.getElementById('multiplayerInfo');
     const difficultyIndicator = document.getElementById('difficultyIndicator');
     const adHeight = adBanner ? adBanner.offsetHeight : 0;
     const infoHeight = info ? info.offsetHeight : 0;
+    const multiplayerInfoHeight = multiplayerInfo ? multiplayerInfo.offsetHeight : 0;
     const indicatorHeight = difficultyIndicator ? difficultyIndicator.offsetHeight : 0;
     canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight - adHeight - infoHeight - indicatorHeight - 30;
-    canvas.style.marginTop = `${adHeight + infoHeight + indicatorHeight + 30}px`;
+    canvas.height = window.innerHeight - adHeight - infoHeight - multiplayerInfoHeight - indicatorHeight - 30;
+    canvas.style.marginTop = `${adHeight + infoHeight + multiplayerInfoHeight + indicatorHeight + 30}px`;
   }
   resize();
   window.addEventListener('resize', resize);
-
   const infoTime = document.getElementById('time');
   const infoHighScore = document.getElementById('highScore');
   const infoCoins = document.getElementById('coins');
@@ -523,6 +604,7 @@
   const skinOptionsDiv = document.getElementById('skinOptions');
   const skinsBackBtn = document.getElementById('skinsBackBtn');
   const restartMenu = document.getElementById('restartMenu');
+  const gameOverTitle = document.getElementById('gameOverTitle');
   const finalScoreP = document.getElementById('finalScore');
   const bestScoreP = document.getElementById('bestScore');
   const restartBtn = document.getElementById('restartBtn');
@@ -533,19 +615,27 @@
   const continueBtn = document.getElementById('continueBtn');
   const pauseToMenuBtn = document.getElementById('pauseToMenuBtn');
   const powerUpIndicators = document.querySelectorAll('.power-up-icon');
+  const powerUpIndicatorContainer = document.querySelector('.power-up-indicator');
   const difficultyMenu = document.getElementById('difficultyMenu');
   const startGameBtn = document.getElementById('startGameBtn');
   const difficultyOptions = document.querySelectorAll('.difficulty-option');
   const difficultyIndicator = document.getElementById('difficultyIndicator');
   const questNotification = document.getElementById('questNotification');
   const purchaseEffect = document.getElementById('purchaseEffect');
+  // Multiplayer elements
+  const multiplayerInfo = document.getElementById('multiplayerInfo');
+  const playerTimeEl = document.getElementById('playerTime');
+  const opponentTimeEl = document.getElementById('opponentTime');
+  const waitingMenu = document.getElementById('waitingMenu');
+  const cancelMultiplayerBtn = document.getElementById('cancelMultiplayerBtn');
+  const winMenu = document.getElementById('winMenu');
+  const winBackBtn = document.getElementById('winBackBtn');
 
   // QUEST System DOM
   const questsBtn = document.getElementById('questsBtn');
   const questsMenu = document.getElementById('questsMenu');
   const questsBackBtn = document.getElementById('questsBackBtn');
   const questList = document.getElementById('questList');
-
   // NEW: Shop DOM
   const shopBtn = document.getElementById('shopBtn');
   const shopMenu = document.getElementById('shopMenu');
@@ -553,8 +643,17 @@
   const shopBackBtn = document.getElementById('shopBackBtn');
   const shopCoinsDisplay = document.getElementById('shopCoins');
 
+  // Multiplayer variables
+  const YOUR_ABLY_KEY = 'JGqbdA.zroxZA:JuV5CYFNfljSNvUDI8LfGWW1RVUA2VY60AQVvmnHfJs'; // Your Ably API Key
+  let ably = null;
+  let gameChannel = null;
+  let matchmakingChannel = null;
+  let multiplayerMode = false;
+  let opponentTime = 0;
+  let gameRoomId = null;
+
   let lives = 3;
-  const maxLives = 3;
+  let maxLives = 3;
   let distance = 0;
   let startTime = 0;
   let gameOver = false;
@@ -567,16 +666,19 @@
   let obstacleSpeed = 2.5;
   let maxObstacles = 3;
   let difficulty = 'easy';
-  
-  // FIX: Redesigned power-up spawning logic for reliability
-  let powerUpSpawnInterval = 3000; // Spawn a power-up every 3 seconds
+
+  let powerUpSpawnInterval = 3000;
   let lastPowerUpSpawnTime = 0;
   const powerUpTypeChances = { shield: 0.4, slow: 0.4, life: 0.2 };
-  
+
   let flashing = false;
   let flashTime = 0;
   let flashDuration = 300;
-  let highScore = 0;
+  let highScores = {
+    easy: 0,
+    hard: 0,
+    hardcore: 0
+  };
   let gamePaused = false;
   let pauseTime = 0;
   let pauseDuration = 0;
@@ -584,54 +686,48 @@
   let slowMotionActive = false;
   let powerUpEndTime = { slow: 0 };
   const powerUpDuration = 5000;
-
-  // NEW: Coin System Variables
   let coins = 0;
   let lastCoinTime = 0;
   let hasStartingShield = false;
-
-  // Game statistics for quests
   let gameStats = {
     totalPowerUps: 0,
     totalGamesPlayed: 0,
     totalObstaclesAvoided: 0,
-    perfectRuns: 0, // no damage taken
+    perfectRuns: 0,
     longestSurvival: 0,
     hardModeWins: 0,
-    shieldsUsed: 0
+    shieldsUsed: 0,
+    totalCoinsCollected: 0,
+    totalTimeSurvived: 0
   };
-
-  // Load game stats and coins
+  if(localStorage.getItem("boatRacerHighScores")) {
+    highScores = {...highScores, ...JSON.parse(localStorage.getItem("boatRacerHighScores"))};
+  }
   if(localStorage.getItem("boatRacerStats")){
     gameStats = {...gameStats, ...JSON.parse(localStorage.getItem("boatRacerStats"))};
   }
   if(localStorage.getItem("boatRacerCoins")){
     coins = parseInt(localStorage.getItem("boatRacerCoins")) || 0;
   }
-
+  function saveHighScores() {
+    localStorage.setItem("boatRacerHighScores", JSON.stringify(highScores));
+  }
   function saveStats(){
     localStorage.setItem("boatRacerStats", JSON.stringify(gameStats));
   }
-
   function saveCoins(){
     localStorage.setItem("boatRacerCoins", coins);
     infoCoins.textContent = `Coins: ${coins}`;
     shopCoinsDisplay.textContent = coins;
   }
-
-  // Enhanced Boat Skins with different shapes and types
   let boatSkins = [
     {color: '#E63946', name: 'Classic Red', type: 'classic'},
     {color: '#457B9D', name: 'Ocean Blue', type: 'classic'},
   ];
   let currentSkinIndex = 0;
-
-  // Shop items now contain all skins
   const shopItems = [
-    // Purchasable skins from old list
     { id: 'skin_SunsetOrange', name: 'Sunset Orange', type: 'skin', cost: 1000, skinData: {color: '#F4A261', name: 'Sunset Orange', type: 'classic'} },
     { id: 'skin_RoyalPurple', name: 'Royal Purple', type: 'skin', cost: 1250, skinData: {color: '#6A4C93', name: 'Royal Purple', type: 'classic'} },
-    // Quest-based skins now in shop
     { id: 'skin_VictoryRed', name: 'Victory Red', type: 'skin', cost: 1500, skinData: {color: '#ff6b6b', name: 'Victory Red', type: 'speedboat'} },
     { id: 'skin_SurvivorCyan', name: 'Survivor Cyan', type: 'skin', cost: 2000, skinData: {color: '#4ecdc4', name: 'Survivor Cyan', type: 'yacht'} },
     { id: 'skin_CamoWarrior', name: 'Camo Warrior', type: 'skin', cost: 2500, skinData: {color: '#7bbc97', name: 'Camo Warrior', type: 'military'} },
@@ -650,17 +746,17 @@
     { id: 'skin_MasterSailor', name: 'Master Sailor', type: 'skin', cost: 9000, skinData: {color: '#ff9800', name: 'Master Sailor', type: 'flagship'} },
     { id: 'skin_RainbowLegend', name: 'Rainbow Legend', type: 'skin', cost: 10000, skinData: {color: '#ffffff', name: 'Rainbow Legend', rainbow: true, boatType: 'legendary'} },
     { id: 'skin_GoldPlated', name: 'Gold Plated', type: 'skin', cost: 12000, skinData: {color: '#ffd700', name: 'Gold Plated', type: 'golden'} },
-    // Other purchasable items
     { id: 'healthBoost', name: 'Health Boost', desc: 'Instantly restore one life.', cost: 500, type: 'health' },
-    { id: 'startShield', name: 'Starting Shield', desc: 'Start your next game with a shield.', cost: 1000, type: 'shield' }
+    { id: 'startShield', name: 'Starting Shield', desc: 'Start your next game with a shield.', cost: 1000, type: 'shield' },
+    { id: 'skin_Triangle', name: 'The Bermuda', desc: 'A strange triangular boat that defies logic.', cost: 1500, type: 'skin', skinData: { color: '#00ccff', name: 'The Bermuda', boatType: 'triangle' } },
+    { id: 'skin_Donut', name: 'The Doughnut', desc: 'Sail in a delicious, round boat.', cost: 1500, type: 'skin', skinData: { color: '#ffb366', name: 'The Doughnut', boatType: 'donut' } },
+    { id: 'skin_Star', name: 'Starship', desc: 'Navigate the waters in a shiny star.', cost: 2000, type: 'skin', skinData: { color: '#f7e735', name: 'Starship', boatType: 'star' } },
+    { id: 'skin_Crescent', name: 'Crescent Moon', desc: 'A serene boat shaped like a waxing crescent.', cost: 2000, type: 'skin', skinData: { color: '#c4c6ff', name: 'Crescent Moon', boatType: 'crescent' } }
   ];
-
-  // Merge shop skins into boatSkins array and load unlocked status
   shopItems.filter(item => item.type === 'skin').forEach(item => {
     item.skinData.unlocked = false;
     boatSkins.push(item.skinData);
   });
-
   if(localStorage.getItem("boatRacerSkins")){
     let savedSkins = JSON.parse(localStorage.getItem("boatRacerSkins"));
     savedSkins.forEach(savedSkin => {
@@ -670,7 +766,6 @@
         }
     });
   }
-
   const boat = {
     w: 60,
     h: 90,
@@ -681,7 +776,6 @@
     color: boatSkins[0].color,
     type: boatSkins[0].type
   };
-
   function resetBoat(){
     boat.x = canvas.width/2 - boat.w/2;
     boat.y = canvas.height - boat.h - 100;
@@ -689,10 +783,7 @@
     boat.type = boatSkins[currentSkinIndex].type || 'classic';
     boat.speed = boat.baseSpeed;
   }
-
-  // UPDATED: Combined old and new quests
   const quests = [
-    // Old Quests (re-tuned)
     { id: 'survive_10s', description: "Survive for 10 seconds", progress: 0, goal: 10, reward: { type: 'coins', amount: 50 }, completed: false, category: 'rookie' },
     { id: 'survive_30s', description: "Survive for 30 seconds", progress: 0, goal: 30, reward: { type: 'coins', amount: 150 }, completed: false, category: 'rookie' },
     { id: 'dodge_20_obstacles', description: "Avoid 20 obstacles", progress: 0, goal: 20, reward: { type: 'coins', amount: 200 }, completed: false, category: 'rookie' },
@@ -701,8 +792,6 @@
     { id: 'collect_5_powerups', description: "Collect 5 power-ups", progress: 0, goal: 5, reward: { type: 'coins', amount: 300 }, completed: false, category: 'rookie' },
     { id: 'play_10_games', description: "Play 10 total games", progress: 0, goal: 10, reward: { type: 'coins', amount: 250 }, completed: false, category: 'rookie' },
     { id: 'no_damage_30s', description: "Survive 30s without damage", progress: 0, goal: 30, reward: { type: 'coins', amount: 500 }, completed: false, category: 'rookie' },
-    
-    // New Quests (Re-categorized for flow)
     { id: 'survive_60s', description: "Survive for 60 seconds", progress: 0, goal: 60, reward: { type: 'coins', amount: 800 }, completed: false, category: 'intermediate' },
     { id: 'survive_120s', description: "Survive for 120 seconds", progress: 0, goal: 120, reward: { type: 'coins', amount: 1500 }, completed: false, category: 'intermediate' },
     { id: 'dodge_100_obstacles', description: "Avoid 100 obstacles", progress: 0, goal: 100, reward: { type: 'coins', amount: 1000 }, completed: false, category: 'intermediate' },
@@ -710,27 +799,30 @@
     { id: 'collect_15_powerups', description: "Collect 15 power-ups", progress: 0, goal: 15, reward: { type: 'coins', amount: 1200 }, completed: false, category: 'intermediate' },
     { id: 'no_damage_60s', description: "Survive 60s without damage", progress: 0, goal: 60, reward: { type: 'coins', amount: 1500 }, completed: false, category: 'intermediate' },
     { id: 'play_25_games', description: "Play 25 total games", progress: 0, goal: 25, reward: { type: 'coins', amount: 1800 }, completed: false, category: 'intermediate' },
-    
-    // Hard Mode Quests (re-tuned)
     { id: 'hardmode_1_win', description: "Win 1 game on Hard Mode", progress: 0, goal: 1, reward: { type: 'coins', amount: 1500 }, completed: false, category: 'expert' },
     { id: 'hardmode_3_wins', description: "Win 3 games on Hard Mode", progress: 0, goal: 3, reward: { type: 'coins', amount: 2500 }, completed: false, category: 'expert' },
     { id: 'hardmode_5_wins', description: "Win 5 games on Hard Mode", progress: 0, goal: 5, reward: { type: 'coins', amount: 4000 }, completed: false, category: 'expert' },
-    
-    // Mastery Quests (higher goals)
     { id: 'survive_300s', description: "Survive for 5 minutes", progress: 0, goal: 300, reward: { type: 'coins', amount: 3500 }, completed: false, category: 'mastery' },
     { id: 'dodge_500_obstacles', description: "Avoid 500 obstacles", progress: 0, goal: 500, reward: { type: 'coins', amount: 5000 }, completed: false, category: 'mastery' },
     { id: 'collect_50_powerups', description: "Collect 50 power-ups", progress: 0, goal: 50, reward: { type: 'coins', amount: 4500 }, completed: false, category: 'mastery' },
     { id: 'no_damage_120s', description: "Survive 120s without damage", progress: 0, goal: 120, reward: { type: 'coins', amount: 5000 }, completed: false, category: 'mastery' },
     { id: 'play_50_games', description: "Play 50 total games", progress: 0, goal: 50, reward: { type: 'coins', amount: 4000 }, completed: false, category: 'mastery' },
-    { id: 'shields_used_25', description: "Use 25 shields", progress: 0, goal: 25, reward: { type: 'coins', amount: 2500 }, completed: false, category: 'mastery' }
+    { id: 'shields_used_25', description: "Use 25 shields", progress: 0, goal: 25, reward: { type: 'coins', amount: 2500 }, completed: false, category: 'mastery' },
+    { id: 'hardmode_10_wins', description: "Win 10 games on Hard Mode", progress: 0, goal: 10, reward: { type: 'coins', amount: 7500 }, completed: false, category: 'legendary' },
+    { id: 'hardmode_25_wins', description: "Win 25 games on Hard Mode", progress: 0, goal: 25, reward: { type: 'coins', amount: 15000 }, completed: false, category: 'legendary' },
+    { id: 'survive_600s', description: "Survive for 10 minutes", progress: 0, goal: 600, reward: { type: 'coins', amount: 8000 }, completed: false, category: 'legendary' },
+    { id: 'collect_100_powerups', description: "Collect 100 power-ups", progress: 0, goal: 100, reward: { type: 'coins', amount: 10000 }, completed: false, category: 'legendary' },
+    { id: 'no_damage_180s', description: "Survive 180s without damage", progress: 0, goal: 180, reward: { type: 'coins', amount: 12000 }, completed: false, category: 'legendary' },
+    { id: 'collect_1000_coins', description: "Collect 1,000 total coins", progress: 0, goal: 1000, reward: { type: 'coins', amount: 2500 }, completed: false, category: 'milestone' },
+    { id: 'collect_5000_coins', description: "Collect 5,000 total coins", progress: 0, goal: 5000, reward: { type: 'coins', amount: 5000 }, completed: false, category: 'milestone' },
+    { id: 'collect_10000_coins', description: "Collect 10,000 total coins", progress: 0, goal: 10000, reward: { type: 'coins', amount: 10000 }, completed: false, category: 'milestone' },
+    { id: 'dodge_1000_obstacles', description: "Avoid 1,000 obstacles", progress: 0, goal: 1000, reward: { type: 'coins', amount: 8000 }, completed: false, category: 'legendary' },
+    { id: 'perfect_5_minutes', description: "Survive a flawless 5 minutes", progress: 0, goal: 300, reward: { type: 'coins', amount: 15000 }, completed: false, category: 'legendary' },
   ];
-
-  // Load quest progress
   let questProgress = JSON.parse(localStorage.getItem("boatRacerQuests") || "{}");
   quests.forEach(q=>{
     if(questProgress[q.id]) Object.assign(q, questProgress[q.id]);
   });
-
   function saveQuests(){
     const data = {};
     quests.forEach(q => data[q.id] = q);
@@ -739,7 +831,6 @@
   function saveSkins(){
     localStorage.setItem("boatRacerSkins", JSON.stringify(boatSkins));
   }
-
   function showQuestNotification(questName, rewardName) {
     questNotification.innerHTML = `
       <div style="font-size: 18px; margin-bottom: 5px;">🎉 QUEST COMPLETE! 🎉</div>
@@ -747,27 +838,23 @@
       <div style="font-size: 12px; opacity: 0.9;">💰 Reward: ${rewardName}</div>
     `;
     questNotification.classList.add('show');
-
     setTimeout(() => {
       questNotification.classList.remove('show');
     }, 4000);
   }
-
   function renderQuests(){
     questList.innerHTML = "";
-
-    // Group quests by category
     const categories = {
       'rookie': '🏆 Rookie Quests',
       'intermediate': '🌟 Intermediate Quests',
       'expert': '⚡ Expert Quests',
-      'mastery': '👑 Mastery Quests'
+      'mastery': '👑 Mastery Quests',
+      'milestone': '💰 Milestone Quests',
+      'legendary': '🌌 Legendary Quests'
     };
-
     Object.entries(categories).forEach(([cat, title]) => {
       const questsForCategory = quests.filter(q => q.category === cat);
       if(questsForCategory.length === 0) return;
-
       const categoryHeader = document.createElement('div');
       categoryHeader.style.cssText = `
         font-size: 1.3em;
@@ -781,39 +868,36 @@
       `;
       categoryHeader.textContent = title;
       questList.appendChild(categoryHeader);
-
       questsForCategory.forEach(q=>{
         const div = document.createElement('div');
         div.className = `quest${q.completed ? ' completed' : ''}`;
-
         let progText = q.completed ?
           "✅ Completed!" :
           `Progress: ${q.progress}/${q.goal}`;
-
-        // Special progress display for certain quest types
         if(!q.completed) {
           if(q.id.includes('survive')) {
             progText = `Current Best: ${gameStats.longestSurvival}s`;
           } else if(q.id.includes('dodge')) {
              progText = `Dodged: ${gameStats.totalObstaclesAvoided}`;
-          } else if(q.id.includes('collect')) {
+          } else if(q.id.includes('collect_') && q.id.includes('powerups')) {
              progText = `Collected: ${gameStats.totalPowerUps}`;
-          } else if(q.id.includes('no_damage')) {
-             progText = `Longest Flawless: ${gameStats.longestSurvival}s`;
+          } else if(q.id.includes('no_damage') || q.id.includes('perfect')) {
+             progText = `Longest Flawless: ${gameStats.perfectRuns}s`;
           } else if(q.id.includes('hardmode')) {
              progText = `Wins: ${gameStats.hardModeWins}/${q.goal}`;
           } else if(q.id.includes('play')) {
              progText = `Games Played: ${gameStats.totalGamesPlayed}/${q.goal}`;
           } else if(q.id.includes('shields')) {
              progText = `Shields Used: ${gameStats.shieldsUsed}/${q.goal}`;
+          } else if(q.id.includes('collect_') && q.id.includes('coins')) {
+             progText = `Collected: ${gameStats.totalCoinsCollected}/${q.goal}`;
           }
         }
-        
+
         let rewardText = `Unspecified Reward`;
         if (q.reward && q.reward.type === 'coins') {
             rewardText = `${q.reward.amount} Coins`;
         }
-
         div.innerHTML = `
           <div class="quest-title">${q.description}</div>
           <div class="quest-progress">${progText}</div>
@@ -823,13 +907,11 @@
       });
     });
   }
-
   questsBtn.addEventListener("click", () => {
     renderQuests();
     showQuestsMenu();
   });
   questsBackBtn.addEventListener("click", showMainMenu);
-
   function showQuestsMenu(){
     menu.style.display = 'none';
     questsMenu.style.display = 'block';
@@ -841,12 +923,8 @@
     pauseBtn.style.display = 'none';
     difficultyIndicator.style.display = 'none';
   }
-
-  // Touch input with dragging fix
   let dragging = false;
   let touchStartX = 0;
-
-  // IMPROVEMENT: Directly move the boat with touch for non-laggy steering
   canvas.addEventListener("touchstart", e => {
     e.preventDefault();
     if (!gamePaused && !gameOver) {
@@ -867,16 +945,12 @@
   canvas.addEventListener("touchend", () => {
     dragging = false;
   });
-
-  // Keyboard control fallback
   let keys = {};
   window.addEventListener('keydown', e => {
     keys[e.key] = true;
     if(e.key === 'Escape') togglePause();
   });
   window.addEventListener('keyup', e => { keys[e.key] = false; });
-
-  // Classes for PowerUp and Obstacle
   class PowerUp {
     constructor(type, x, y) {
       this.type = type;
@@ -950,7 +1024,6 @@
       updatePowerUpIndicators();
     }
   }
-
   class Obstacle {
     constructor(x, y, speed){
       this.x = x;
@@ -1009,9 +1082,6 @@
         ctx.closePath();
         ctx.fill();
       }
-      
-      // REMOVED THE CIRCLE SHINING EFFECT
-      
       ctx.restore();
     }
     getBounds(){
@@ -1023,11 +1093,18 @@
       };
     }
   }
-
   function isCollide(b, o){
-    return !(b.x > o.x+o.width || b.x+b.w < o.x || b.y > o.y+o.height || b.y+b.h < o.y);
+    const boatBounds = {
+        x: boat.x,
+        y: boat.y,
+        width: boat.w,
+        height: boat.h
+    };
+    return !(boatBounds.x > o.x + o.width ||
+             boatBounds.x + boatBounds.width < o.x ||
+             boatBounds.y > o.y + o.height ||
+             boatBounds.y + boatBounds.height < o.y);
   }
-
   function drawBoat(){
     ctx.save();
     ctx.translate(boat.x + boat.w/2, boat.y + boat.h/2);
@@ -1042,8 +1119,6 @@
       ctx.stroke();
       ctx.setLineDash([]);
     }
-
-    // Different boat types drawing
     const currentSkin = boatSkins[currentSkinIndex];
     if(currentSkin.rainbow){
       let grad = ctx.createLinearGradient(-boat.w/2, 0, boat.w/2, 0);
@@ -1057,12 +1132,9 @@
     } else {
       ctx.fillStyle = boat.color;
     }
-
     const boatType = currentSkin.boatType || 'classic';
-
     switch(boatType) {
       case 'speedboat':
-        // Sleeker, more angular design
         ctx.beginPath();
         ctx.moveTo(-boat.w/2, boat.h/2);
         ctx.lineTo(-boat.w/4, -boat.h/2 + 5);
@@ -1070,12 +1142,10 @@
         ctx.lineTo(boat.w/2, boat.h/2);
         ctx.lineTo(-boat.w/2, boat.h/2);
         ctx.fill();
-        // Add fins
         ctx.fillRect(-boat.w/3, boat.h/3, boat.w/6, boat.h/8);
         ctx.fillRect(boat.w/6, boat.h/3, boat.w/6, boat.h/8);
         break;
       case 'yacht':
-        // Wider, more luxurious design
         ctx.beginPath();
         ctx.moveTo(-boat.w/2 - 5, boat.h/2);
         ctx.lineTo(-boat.w/3, -boat.h/2);
@@ -1083,16 +1153,13 @@
         ctx.lineTo(boat.w/2 + 5, boat.h/2);
         ctx.closePath();
         ctx.fill();
-        // Add deck details
         ctx.fillStyle = '#fff';
         ctx.fillRect(-boat.w/4, -boat.h/4, boat.w/2, boat.h/6);
         break;
       case 'submarine':
-        // Cylindrical design
         ctx.beginPath();
         ctx.ellipse(0, 0, boat.w/2, boat.h/2.5, 0, 0, Math.PI * 2);
         ctx.fill();
-        // Add periscope
         ctx.strokeStyle = boat.color;
         ctx.lineWidth = 3;
         ctx.beginPath();
@@ -1101,11 +1168,9 @@
         ctx.stroke();
         break;
       case 'hovercraft':
-        // Circular base with fan
         ctx.beginPath();
         ctx.ellipse(0, 0, boat.w/2.2, boat.h/2.2, 0, 0, Math.PI * 2);
         ctx.fill();
-        // Add fan blades
         ctx.strokeStyle = '#fff';
         ctx.lineWidth = 2;
         for(let i = 0; i < 6; i++) {
@@ -1116,7 +1181,46 @@
           ctx.stroke();
         }
         break;
-      default: // classic and others
+        case 'triangle':
+            ctx.beginPath();
+            ctx.moveTo(-boat.w / 2, boat.h / 2);
+            ctx.lineTo(0, -boat.h / 2);
+            ctx.lineTo(boat.w / 2, boat.h / 2);
+            ctx.closePath();
+            ctx.fill();
+            break;
+        case 'donut':
+            ctx.beginPath();
+            ctx.arc(0, 0, boat.w / 2, 0, Math.PI * 2, false);
+            ctx.arc(0, 0, boat.w / 4, 0, Math.PI * 2, true);
+            ctx.fill();
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(boat.w / 4, 0, 5, 2);
+            ctx.fillRect(-boat.w / 4, -5, 5, 2);
+            break;
+        case 'star':
+            ctx.beginPath();
+            for (let i = 0; i < 5; i++) {
+                ctx.lineTo(
+                    Math.cos(0.95 * Math.PI - 2.1 * i) * boat.w / 2,
+                    Math.sin(0.95 * Math.PI - 2.1 * i) * boat.h / 2
+                );
+                ctx.lineTo(
+                    Math.cos(0.95 * Math.PI - 2.1 * i - 1.05) * boat.w / 4,
+                    Math.sin(0.95 * Math.PI - 2.1 * i - 1.05) * boat.h / 4
+                );
+            }
+            ctx.closePath();
+            ctx.fill();
+            break;
+        case 'crescent':
+            ctx.beginPath();
+            ctx.arc(0, 0, boat.w/2, 0.5 * Math.PI, 1.5 * Math.PI);
+            ctx.lineTo(0, boat.h/2);
+            ctx.closePath();
+            ctx.fill();
+            break;
+      default:
         ctx.beginPath();
         ctx.moveTo(-boat.w/2, boat.h/2);
         ctx.lineTo(-boat.w/3, -boat.h/2);
@@ -1124,7 +1228,6 @@
         ctx.lineTo(boat.w/2, boat.h/2);
         ctx.closePath();
         ctx.fill();
-        // Classic boat details
         ctx.strokeStyle = '#00fff7';
         ctx.lineWidth = 3;
         ctx.beginPath();
@@ -1135,10 +1238,8 @@
         ctx.fillRect(-boat.w/10, boat.h/6, boat.w/5, boat.h/12);
         break;
     }
-
     ctx.restore();
   }
-
   function updateHearts(){
     heartsContainer.innerHTML = '';
     for(let i=0; i<maxLives; i++){
@@ -1172,8 +1273,7 @@
     }
     updatePowerUpIndicators();
   }
-  
-  // FIX: This is the new power-up spawn logic
+
   function spawnPowerUp() {
     const now = Date.now();
     if (now - lastPowerUpSpawnTime > powerUpSpawnInterval) {
@@ -1187,25 +1287,21 @@
       lastPowerUpSpawnTime = now;
     }
   }
-  
+
   function increaseDifficulty() {
     spawnInterval = Math.max(800, spawnInterval - 100);
     obstacleSpeed += 0.3;
     maxObstacles = Math.min(8, maxObstacles + 1);
   }
-
-  // PAUSE / RESUME fix for correct pause duration tracking & prevent negative time
   function togglePause(){
-    if(gameOver) return;
+    if(gameOver || multiplayerMode) return; // Can't pause in multiplayer
     if(!gamePaused) {
-      // Pausing now
       pauseTime = Date.now();
       gamePaused = true;
       cancelAnimationFrame(animationFrameId);
       pauseMenu.style.display = 'block';
       pauseBtn.textContent = '▶';
     } else {
-      // Resuming now
       pauseDuration += (Date.now() - pauseTime);
       pauseTime = 0;
       gamePaused = false;
@@ -1214,44 +1310,272 @@
       loop();
     }
   }
-
   let animationFrameId;
-  let gameStartLives = maxLives; // Track starting lives for perfect run
-  let coinsGainedThisRun = 0; // NEW: Track coins for this run
-  let obstaclesDodgedThisRun = 0;
   let hasTakenDamageThisRun = false;
 
+  // ===================================================================
+  // FIXED PEER-TO-PEER MULTIPLAYER LOGIC
+  // ===================================================================
+
+  // Creates or retrieves a unique ID for the player from local storage
+  function getPlayerId() {
+    if (!localStorage.getItem("boatRacerPlayerId")) {
+      localStorage.setItem("boatRacerPlayerId", "player_" + Math.random().toString(36).substr(2, 9));
+    }
+    return localStorage.getItem("boatRacerPlayerId");
+  }
+
+  // Generates a random, unique ID for a game room
+  function generateRoomId() {
+    return "boat-race-" + Math.random().toString(36).substr(2, 9);
+  }
+
+  // Called when the user clicks "Start Game" in Peer-to-Peer mode
+  function initMultiplayer() {
+    const playerId = getPlayerId();
+    showWaitingMenu(); // Show "Waiting for Player..." screen
+
+    // NOTE: In a real production app, use token authentication instead of exposing your API key.
+    ably = new Ably.Realtime({ key: YOUR_ABLY_KEY, clientId: playerId });
+
+    ably.connection.on('connected', () => {
+        console.log('Successfully connected to Ably!');
+        startMatchmaking(playerId);
+    });
+
+    ably.connection.on('failed', (error) => {
+        console.error('Ably connection failed:', error);
+        alert('Could not connect to multiplayer service. Please try again later.');
+        cancelMultiplayer();
+    });
+  }
+
+  // Handles joining the public lobby and finding an opponent
+  function startMatchmaking(playerId) {
+      matchmakingChannel = ably.channels.get('boat-racer-matchmaking-lobby');
+
+      // Subscribe to invites first, so we don't miss one from an opponent who finds us immediately.
+      matchmakingChannel.subscribe('game-invite', (message) => {
+          if (message.data.players.includes(playerId)) {
+              console.log(`Received invite to game room: ${message.data.roomId}`);
+              
+              // Clean up matchmaking channel and join the game
+              matchmakingChannel.presence.leave();
+              matchmakingChannel.detach();
+              matchmakingChannel = null;
+              joinGameRoom(message.data.roomId);
+          }
+      });
+
+      // Now, enter presence to announce we are looking for a game.
+      matchmakingChannel.presence.enter();
+      console.log("Entered matchmaking lobby. Looking for an opponent...");
+
+      const findOpponent = () => {
+          matchmakingChannel.presence.get((err, members) => {
+              if (err) return console.error("Error getting presence members:", err);
+              
+              const opponent = members.find(m => m.clientId !== playerId);
+
+              if (opponent) {
+                  // To prevent both players creating a game, the one with the smaller ID acts as the host.
+                  if (playerId < opponent.clientId) {
+                      console.log(`Found opponent: ${opponent.clientId}. Creating game...`);
+                      const newRoomId = generateRoomId();
+                      
+                      // Publish the invite on the lobby channel for both players to see.
+                      matchmakingChannel.publish('game-invite', {
+                          roomId: newRoomId,
+                          players: [playerId, opponent.clientId]
+                      });
+                  }
+              }
+          });
+      };
+
+      // Check for an opponent whenever someone new enters the lobby.
+      matchmakingChannel.presence.subscribe('enter', findOpponent);
+      // Also check right away, in case someone was already waiting.
+      findOpponent();
+  }
+
+  // Handles joining the private game room and syncing the start
+  function joinGameRoom(roomId) {
+      gameRoomId = roomId;
+      gameChannel = ably.channels.get(gameRoomId);
+
+      // Subscribe to game events
+      gameChannel.subscribe('player-state', (message) => {
+          if (message.clientId !== ably.auth.clientId) {
+              opponentTime = message.data.time;
+              opponentTimeEl.textContent = `Opponent: ${opponentTime}s`;
+          }
+      });
+
+      gameChannel.subscribe('player-died', (message) => {
+          if (message.clientId !== ably.auth.clientId && !gameOver) {
+              console.log("Opponent crashed. You win!");
+              showWinMenu();
+          }
+      });
+
+      gameChannel.subscribe('start-game', () => {
+          console.log("Received start signal. Let's race!");
+          startMultiplayerGame();
+      });
+
+      // Use presence in the game room to sync up.
+      gameChannel.presence.subscribe('enter', () => {
+          gameChannel.presence.get((err, members) => {
+              if (members.length === 2) {
+                  // Both players are here. The host sends the start signal.
+                  const opponent = members.find(m => m.clientId !== ably.auth.clientId);
+                  if (ably.auth.clientId < opponent.clientId) {
+                      console.log("Both players ready. Host sending start signal.");
+                      gameChannel.publish('start-game', { start: true });
+                  }
+              }
+          });
+      });
+      gameChannel.presence.enter();
+  }
+
+  // Transitions from the waiting menu to the actual game
+  function startMultiplayerGame() {
+    resetGame(); // This will set difficulty and other game params
+    multiplayerMode = true; // Explicitly set mode
+    waitingMenu.style.display = 'none';
+    showGameCanvas();
+    loop();
+  }
+
+  // Sends this player's survival time to the opponent
+  function sendPlayerState() {
+    if (multiplayerMode && gameChannel && gameChannel.state === 'attached' && !gameOver) {
+      const elapsed = Math.floor((Date.now() - startTime - pauseDuration) / 1000);
+      gameChannel.publish("player-state", { time: elapsed });
+    }
+  }
+
+  // Tells the opponent that this player has lost
+  function sendPlayerDied() {
+     if (multiplayerMode && gameChannel && gameChannel.state === 'attached') {
+      gameChannel.publish("player-died", { died: true });
+    }
+  }
+  
+  // Shows the "Waiting for Player" menu
+  function showWaitingMenu() {
+    menu.style.display = 'none';
+    difficultyMenu.style.display = 'none';
+    waitingMenu.style.display = 'block';
+  }
+
+  // Shows the "You Win!" screen
+  function showWinMenu() {
+    if (gameOver) return; // Prevent running multiple times
+    gameOver = true;
+    cancelAnimationFrame(animationFrameId);
+    winMenu.style.display = 'block';
+
+    // Hide game elements
+    canvas.style.display = 'none';
+    pauseBtn.style.display = 'none';
+    difficultyIndicator.style.display = 'none';
+    multiplayerInfo.style.display = 'none';
+
+    cancelMultiplayer(false); // Clean up connections without hiding the win menu
+  }
+
+  // Disconnects from Ably and cleans up all multiplayer state
+  function cancelMultiplayer(shouldShowMenu = true) {
+    console.log("Cleaning up multiplayer session.");
+    if (gameChannel) {
+        gameChannel.presence.leave();
+        gameChannel.detach();
+    }
+    if (matchmakingChannel) {
+        matchmakingChannel.presence.leave();
+        matchmakingChannel.detach();
+    }
+    if (ably && ably.connection.state === 'connected') {
+        ably.close();
+    }
+    ably = null;
+    gameChannel = null;
+    matchmakingChannel = null;
+    multiplayerMode = false;
+
+    if (shouldShowMenu) {
+        showMainMenu();
+    } else {
+        waitingMenu.style.display = 'none';
+    }
+  }
+  // ===================================================================
+  // END OF MULTIPLAYER LOGIC
+  // ===================================================================
+
   function resetGame(){
-    lives = maxLives;
-    gameStartLives = maxLives;
     hasTakenDamageThisRun = false;
     distance = 0;
     startTime = Date.now();
     lastCoinTime = Date.now();
-    lastPowerUpSpawnTime = Date.now(); // Reset power-up timer
-    coinsGainedThisRun = 0;
-    obstaclesDodgedThisRun = 0;
+    lastPowerUpSpawnTime = Date.now();
     gameOver = false;
     obstacles = [];
     powerUps = [];
     lastSpawn = 0;
     lastDifficultyIncrease = 0;
-    if (difficulty === 'hard') {
+    maxLives = 3;
+    powerUpIndicatorContainer.style.display = 'none';
+    multiplayerMode = false; // Default to single player
+
+    if (difficulty === 'multiplayer') {
+      multiplayerMode = true; // Set multiplayer mode
       spawnInterval = 1800;
       obstacleSpeed = 4.0;
       maxObstacles = 5;
-      powerUpSpawnInterval = 3000; // Shorter interval for hard mode
+      lives = 3;
+      powerUpSpawnInterval = 3000;
+      difficultyIndicator.textContent = "PEER-TO-PEER";
+      difficultyIndicator.className = "multiplayer";
+      powerUpIndicatorContainer.style.display = 'flex';
+      info.style.display = 'none';
+      multiplayerInfo.style.display = 'flex';
+    }
+    else if (difficulty === 'hard') {
+      spawnInterval = 1800;
+      obstacleSpeed = 4.0;
+      maxObstacles = 5;
+      lives = 3;
+      powerUpSpawnInterval = 3000;
       difficultyIndicator.textContent = "HARD MODE";
       difficultyIndicator.className = "hard";
+      powerUpIndicatorContainer.style.display = 'flex';
     }
-    else {
+    else if (difficulty === 'hardcore') {
+      spawnInterval = 1800;
+      obstacleSpeed = 4.0;
+      maxObstacles = 5;
+      lives = 1;
+      maxLives = 1;
+      powerUpSpawnInterval = Number.MAX_SAFE_INTEGER;
+      difficultyIndicator.textContent = "HARDCORE";
+      difficultyIndicator.className = "hardcore";
+      powerUpIndicatorContainer.style.display = 'none';
+    }
+    else { // Easy mode
       spawnInterval = 2500;
       obstacleSpeed = 2.5;
       maxObstacles = 3;
-      powerUpSpawnInterval = 3000; // Default interval for easy mode
+      lives = 3;
+      powerUpSpawnInterval = 3000;
       difficultyIndicator.textContent = "EASY MODE";
       difficultyIndicator.className = "easy";
+      powerUpIndicatorContainer.style.display = 'flex';
     }
+
     difficultyIndicator.style.display = 'block';
     pauseDuration = 0;
     hasShield = hasStartingShield;
@@ -1264,30 +1588,33 @@
     updateHearts();
     updateInfo();
   }
-
   function updateInfo(){
     let elapsed = Math.floor((Date.now() - startTime - pauseDuration) / 1000);
     if(elapsed < 0) elapsed = 0;
-    infoTime.textContent = `Time: ${elapsed}s`;
-    if(elapsed > highScore) {
-      highScore = elapsed;
-      localStorage.setItem('boatRacerHighScore', highScore);
+
+    if (multiplayerMode) {
+      playerTimeEl.textContent = `Your Time: ${elapsed}s`;
+      sendPlayerState();
+    } else {
+      infoTime.textContent = `Time: ${elapsed}s`;
+      if (difficulty !== 'multiplayer' && elapsed > highScores[difficulty]) {
+          highScores[difficulty] = elapsed;
+          saveHighScores();
+      }
+      infoHighScore.textContent = `High Score: ${highScores[difficulty]}s`;
     }
-    infoHighScore.textContent = `High Score: ${highScore}s`;
     infoCoins.textContent = `Coins: ${coins}`;
   }
-
   function spawnObstacle(){
     const x = Math.random() * (canvas.width - 60) + 30;
     obstacles.push(new Obstacle(x, -50, obstacleSpeed));
   }
-
   function update(){
     if(gameOver || gamePaused) return;
     const now = Date.now();
-    // NEW: Coin generation based on time
     if(now - lastCoinTime > 2000) {
       coins++;
+      gameStats.totalCoinsCollected++;
       saveCoins();
       lastCoinTime = now;
     }
@@ -1295,8 +1622,10 @@
       lastSpawn = now;
       spawnObstacle();
     }
-    // FIX: Calling spawnPowerUp() in the main update loop
-    spawnPowerUp();
+    // Power-ups are disabled in hardcore, but enabled in multiplayer
+    if (difficulty !== 'hardcore') {
+      spawnPowerUp();
+    }
     if(now - lastDifficultyIncrease > difficultyIncreaseInterval){
       lastDifficultyIncrease = now;
       increaseDifficulty();
@@ -1306,8 +1635,10 @@
       if(o.y - o.size/2 > canvas.height){
         obstacles.splice(i, 1);
         distance += 100;
-        obstaclesDodgedThisRun++;
-        gameStats.totalObstaclesAvoided++;
+        if (!multiplayerMode) { // Stats only for single player
+            obstaclesDodgedThisRun++;
+            gameStats.totalObstaclesAvoided++;
+        }
       } else if(isCollide(boat, o.getBounds())){
         obstacles.splice(i, 1);
         if(hasShield) {
@@ -1321,7 +1652,10 @@
           if(lives <= 0) {
             gameOver = true;
             cancelAnimationFrame(animationFrameId);
-            showRestartMenu();
+            if (multiplayerMode) {
+              sendPlayerDied();
+            }
+            showRestartMenu(); // This will show win/loss screen for multiplayer
           }
         }
       }
@@ -1337,29 +1671,24 @@
       }
     });
     checkPowerUpExpiration();
-    // Move boat by keyboard
     if(keys['ArrowLeft'] || keys['a']) boat.x -= boat.speed;
     if(keys['ArrowRight'] || keys['d']) boat.x += boat.speed;
     boat.x = Math.min(Math.max(0, boat.x), canvas.width - boat.w);
-    
+
     updateFlash();
     updateInfo();
   }
-
   function draw(){
     ctx.clearRect(0,0,canvas.width,canvas.height);
     drawBoat();
     obstacles.forEach(o => o.draw());
     powerUps.forEach(p => p.draw());
   }
-
   function loop(){
     update();
     draw();
     if(!gameOver && !gamePaused) animationFrameId = requestAnimationFrame(loop);
   }
-
-  // === FIX: stop game loop on returning to menu to avoid background running ===
   function showMainMenu(){
     gamePaused = true;
     cancelAnimationFrame(animationFrameId);
@@ -1370,93 +1699,94 @@
     shopMenu.style.display = 'none';
     restartMenu.style.display = 'none';
     pauseMenu.style.display = 'none';
+    waitingMenu.style.display = 'none';
+    winMenu.style.display = 'none';
     canvas.style.display = 'none';
     flashOverlay.style.display = 'none';
     pauseBtn.style.display = 'none';
     difficultyIndicator.style.display = 'none';
     pauseBtn.textContent = '⏸';
+    info.style.display = 'flex';
+    multiplayerInfo.style.display = 'none';
   }
   function showSkinsMenu(){
     menu.style.display = 'none';
     difficultyMenu.style.display = 'none';
     skinsMenu.style.display = 'block';
-    questsMenu.style.display = 'none';
-    shopMenu.style.display = 'none';
-    restartMenu.style.display = 'none';
-    pauseMenu.style.display = 'none';
-    canvas.style.display = 'none';
-    pauseBtn.style.display = 'none';
-    difficultyIndicator.style.display = 'none';
   }
   function showDifficultyMenu(){
     menu.style.display = 'none';
     difficultyMenu.style.display = 'block';
-    skinsMenu.style.display = 'none';
-    questsMenu.style.display = 'none';
-    shopMenu.style.display = 'none';
-    restartMenu.style.display = 'none';
-    pauseMenu.style.display = 'none';
-    canvas.style.display = 'none';
-    pauseBtn.style.display = 'none';
-    difficultyIndicator.style.display = 'none';
     difficultyOptions.forEach(opt => opt.classList.remove('selected'));
     difficultyOptions[0].classList.add('selected');
     difficulty = 'easy';
   }
   function showRestartMenu(){
-    menu.style.display = 'none';
-    difficultyMenu.style.display = 'none';
-    skinsMenu.style.display = 'none';
-    questsMenu.style.display = 'none';
-    shopMenu.style.display = 'none';
     restartMenu.style.display = 'block';
-    pauseMenu.style.display = 'none';
     canvas.style.display = 'none';
     flashOverlay.style.display = 'none';
     pauseBtn.style.display = 'none';
     difficultyIndicator.style.display = 'none';
+
     const elapsed = Math.floor((Date.now()-startTime - pauseDuration)/1000);
-    finalScoreP.textContent = `Your Time: ${elapsed}s`;
-    bestScoreP.textContent = `Best Time: ${highScore}s`;
-    gameStats.longestSurvival = Math.max(gameStats.longestSurvival, elapsed);
-    checkQuestsAtEnd(elapsed);
+
+    if (multiplayerMode) {
+        gameOverTitle.textContent = "You Lost!";
+        finalScoreP.textContent = `You survived for ${elapsed}s.`;
+        bestScoreP.style.display = 'none';
+        restartBtn.style.display = 'none';
+        cancelMultiplayer(false); // Clean up connections
+    } else {
+        gameOverTitle.textContent = "Game Over!";
+        finalScoreP.textContent = `Your Time: ${elapsed}s`;
+        bestScoreP.textContent = `Best Time: ${highScores[difficulty]}s`;
+        bestScoreP.style.display = 'block';
+        restartBtn.style.display = 'inline-block';
+        gameStats.longestSurvival = Math.max(gameStats.longestSurvival, elapsed);
+        gameStats.totalTimeSurvived += elapsed;
+        checkQuestsAtEnd(elapsed);
+    }
   }
   function showGameCanvas(){
     menu.style.display = 'none';
     difficultyMenu.style.display = 'none';
-    skinsMenu.style.display = 'none';
-    questsMenu.style.display = 'none';
-    shopMenu.style.display = 'none';
     restartMenu.style.display = 'none';
-    pauseMenu.style.display = 'none';
+    winMenu.style.display = 'none';
     canvas.style.display = 'block';
     pauseBtn.style.display = 'block';
     difficultyIndicator.style.display = 'block';
   }
-
-  // NEW: Shop Functions
   function showShopMenu() {
     menu.style.display = 'none';
     shopMenu.style.display = 'block';
-    skinsMenu.style.display = 'none';
-    questsMenu.style.display = 'none';
-    difficultyMenu.style.display = 'none';
-    restartMenu.style.display = 'none';
-    pauseMenu.style.display = 'none';
-    canvas.style.display = 'none';
-    pauseBtn.style.display = 'none';
-    difficultyIndicator.style.display = 'none';
-    saveCoins(); // Update coin display
+    saveCoins();
     renderShopItems();
   }
-
   function renderShopItems() {
     shopItemsDiv.innerHTML = "";
+    const categories = {
+      'skins': '🎨 Boat Skins',
+      'items': '✨ Power-ups & Items'
+    };
+    const shopSkins = shopItems.filter(item => item.type === 'skin');
+    const shopItemsList = shopItems.filter(item => item.type !== 'skin');
+    const skinsHeader = document.createElement('div');
+    skinsHeader.style.cssText = `
+        font-size: 1.3em;
+        font-weight: bold;
+        margin: 20px 0 10px 0;
+        color: #00fff7;
+        text-align: center;
+        text-shadow: 0 0 10px #00fff7;
+        border-bottom: 2px solid #00fff7;
+        padding-bottom: 5px;
+    `;
+    skinsHeader.textContent = categories['skins'];
+    shopItemsDiv.appendChild(skinsHeader);
 
-    shopItems.forEach(item => {
+    shopSkins.forEach(item => {
       const div = document.createElement('div');
       div.className = 'shop-item';
-
       const details = document.createElement('div');
       details.className = 'item-details';
       details.innerHTML = `
@@ -1464,52 +1794,75 @@
         <div class="item-description">${item.desc || `Unlock the ${item.name} boat skin.`}</div>
       `;
       div.appendChild(details);
-
       const priceDiv = document.createElement('div');
       priceDiv.className = 'item-price';
       priceDiv.innerHTML = `${item.cost} Coins`;
-
       const buyBtn = document.createElement('button');
-      if (item.type === 'skin') {
-        const skin = boatSkins.find(s => s.name === item.skinData.name);
-        if (skin && skin.unlocked) {
-            buyBtn.textContent = "Owned";
-            buyBtn.disabled = true;
-            div.style.filter = "grayscale(50%)";
-        } else {
-            buyBtn.textContent = "Buy";
-            if (coins < item.cost) {
-              buyBtn.disabled = true;
-            }
-        }
-      } else {
-        buyBtn.textContent = "Buy";
-        if (coins < item.cost) {
+      const skin = boatSkins.find(s => s.name === item.skinData.name);
+      if (skin && skin.unlocked) {
+          buyBtn.textContent = "Owned";
           buyBtn.disabled = true;
-        }
+          div.style.filter = "grayscale(50%)";
+      } else {
+          buyBtn.textContent = "Buy";
+          if (coins < item.cost) {
+            buyBtn.disabled = true;
+          }
       }
-
       buyBtn.addEventListener('click', () => buyItem(item));
       priceDiv.appendChild(buyBtn);
-
       div.appendChild(priceDiv);
       shopItemsDiv.appendChild(div);
     });
+    const itemsHeader = document.createElement('div');
+    itemsHeader.style.cssText = `
+        font-size: 1.3em;
+        font-weight: bold;
+        margin: 20px 0 10px 0;
+        color: #00fff7;
+        text-align: center;
+        text-shadow: 0 0 10px #00fff7;
+        border-bottom: 2px solid #00fff7;
+        padding-bottom: 5px;
+    `;
+    itemsHeader.textContent = categories['items'];
+    shopItemsDiv.appendChild(itemsHeader);
+    shopItemsList.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'shop-item';
+        const details = document.createElement('div');
+        details.className = 'item-details';
+        details.innerHTML = `
+            <div class="item-title">${item.name}</div>
+            <div class="item-description">${item.desc}</div>
+        `;
+        div.appendChild(details);
+        const priceDiv = document.createElement('div');
+        priceDiv.className = 'item-price';
+        priceDiv.innerHTML = `${item.cost} Coins`;
+        const buyBtn = document.createElement('button');
+        buyBtn.textContent = "Buy";
+        if (coins < item.cost) {
+            buyBtn.disabled = true;
+        }
+        buyBtn.addEventListener('click', () => buyItem(item));
+        priceDiv.appendChild(buyBtn);
+        div.appendChild(priceDiv);
+        shopItemsDiv.appendChild(div);
+    });
   }
-  
+
   function triggerPurchaseEffect() {
     purchaseEffect.classList.add('active');
     setTimeout(() => {
       purchaseEffect.classList.remove('active');
     }, 800);
   }
-
   function buyItem(item) {
     if (coins >= item.cost) {
       coins -= item.cost;
       saveCoins();
       triggerPurchaseEffect();
-
       switch(item.type) {
         case 'health':
           if (lives < maxLives) {
@@ -1518,7 +1871,7 @@
             alert("Health Boost purchased! One life has been restored.");
           } else {
             alert("You already have full health!");
-            coins += item.cost; // Refund coins
+            coins += item.cost;
             saveCoins();
           }
           break;
@@ -1540,7 +1893,6 @@
       alert("Not enough coins!");
     }
   }
-
   function initSkinButtons(){
     skinOptionsDiv.innerHTML = '';
     boatSkins.forEach((skin, idx) => {
@@ -1551,10 +1903,8 @@
       } else {
         btn.style.background = skin.color;
       }
-
       if(idx === currentSkinIndex) btn.classList.add('selected');
       btn.title = skin.name;
-
       const isLocked = skin.unlocked === false;
       if (isLocked) {
         btn.style.filter = "grayscale(100%)";
@@ -1569,14 +1919,11 @@
           resetBoat();
         });
       }
-
       skinOptionsDiv.appendChild(btn);
     });
   }
-
-  playBtn.addEventListener('click', () => {
-    showDifficultyMenu();
-  });
+  playBtn.addEventListener('click', showDifficultyMenu);
+  
   difficultyOptions.forEach(option => {
     option.addEventListener('click', () => {
       difficultyOptions.forEach(opt => opt.classList.remove('selected'));
@@ -1584,26 +1931,30 @@
       difficulty = option.dataset.difficulty;
     });
   });
+  
   startGameBtn.addEventListener('click', () => {
-    resetGame();
-    showGameCanvas();
-    loop();
+    if (difficulty === 'multiplayer') {
+      initMultiplayer();
+    } else {
+      resetGame();
+      showGameCanvas();
+      loop();
+    }
   });
+  
   skinsBtn.addEventListener('click', () => {
     initSkinButtons();
     showSkinsMenu();
   });
-  skinsBackBtn.addEventListener('click', () => {
-    showMainMenu();
-  });
+  
+  skinsBackBtn.addEventListener('click', showMainMenu);
   restartBtn.addEventListener('click', () => {
     resetGame();
     showGameCanvas();
     loop();
   });
-  backToMenuBtn.addEventListener('click', () => {
-    showMainMenu();
-  });
+  
+  backToMenuBtn.addEventListener('click', showMainMenu);
   pauseBtn.addEventListener('click', togglePause);
   continueBtn.addEventListener('click', togglePause);
   pauseToMenuBtn.addEventListener('click', () => {
@@ -1612,29 +1963,22 @@
   });
   shopBtn.addEventListener('click', showShopMenu);
   shopBackBtn.addEventListener('click', showMainMenu);
-
-  // QUEST SYSTEM tracking and rewards
+  cancelMultiplayerBtn.addEventListener('click', cancelMultiplayer);
+  winBackBtn.addEventListener('click', showMainMenu);
+  
   function checkQuestsAtEnd(elapsed) {
     gameStats.totalGamesPlayed++;
     saveStats();
-    
-    // Check if it was a perfect run (no damage taken)
     const isPerfectRun = !hasTakenDamageThisRun;
     if(isPerfectRun) {
-        // Track longest perfect run
         gameStats.perfectRuns = Math.max(gameStats.perfectRuns, elapsed);
     }
-
-    // Hard mode win check
     if(difficulty === 'hard' && !gameOver) {
         gameStats.hardModeWins++;
     }
-
     quests.forEach(q => {
       if(q.completed) return;
-
       let questCompleted = false;
-
       switch(q.id) {
         case 'play_10_games':
         case 'play_25_games':
@@ -1647,6 +1991,7 @@
         case 'survive_60s':
         case 'survive_120s':
         case 'survive_300s':
+        case 'survive_600s':
           if(elapsed >= q.goal) {
             q.progress = elapsed;
             questCompleted = true;
@@ -1657,6 +2002,7 @@
         case 'dodge_100_obstacles':
         case 'dodge_200_obstacles':
         case 'dodge_500_obstacles':
+        case 'dodge_1000_obstacles':
           q.progress = gameStats.totalObstaclesAvoided;
           if (q.progress >= q.goal) questCompleted = true;
           break;
@@ -1668,9 +2014,17 @@
             questCompleted = true;
           }
           break;
+        case 'perfect_5_minutes':
+          if(isPerfectRun && elapsed >= q.goal) {
+            q.progress = elapsed;
+            questCompleted = true;
+          }
+          break;
         case 'hardmode_1_win':
         case 'hardmode_3_wins':
         case 'hardmode_5_wins':
+        case 'hardmode_10_wins':
+        case 'hardmode_25_wins':
           q.progress = gameStats.hardModeWins;
           if (q.progress >= q.goal) questCompleted = true;
           break;
@@ -1678,8 +2032,13 @@
           q.progress = gameStats.shieldsUsed;
           if (q.progress >= q.goal) questCompleted = true;
           break;
+        case 'collect_1000_coins':
+        case 'collect_5000_coins':
+        case 'collect_10000_coins':
+          q.progress = gameStats.totalCoinsCollected;
+          if (q.progress >= q.goal) questCompleted = true;
+          break;
       }
-
       if(questCompleted && !q.completed) {
         q.completed = true;
         coins += q.reward.amount;
@@ -1687,19 +2046,14 @@
         showQuestNotification(q.description, `${q.reward.amount} Coins`);
       }
     });
-
     saveQuests();
     saveStats();
   }
-
   function onPowerupCollected(){
     gameStats.totalPowerUps++;
     saveStats();
-
-    // Check power-up related quests immediately
     quests.forEach(q => {
       if(q.completed) return;
-
       if(q.id.includes('collect_') && q.id.includes('powerups')) {
         q.progress = gameStats.totalPowerUps;
         if(gameStats.totalPowerUps >= q.goal && !q.completed) {
@@ -1710,12 +2064,9 @@
         }
       }
     });
-
     saveQuests();
     saveStats();
   }
-
-  // AUTO-PAUSE WHEN TAB OR APP BECOMES HIDDEN
   document.addEventListener('visibilitychange', () => {
     if(document.hidden){
       if(!gamePaused && !gameOver){
@@ -1723,11 +2074,10 @@
       }
     }
   });
-
-  if(localStorage.getItem('boatRacerHighScore')) {
-    highScore = parseInt(localStorage.getItem('boatRacerHighScore'));
-    infoHighScore.textContent = `High Score: ${highScore}s`;
+  if(localStorage.getItem('boatRacerHighScores')) {
+    highScores = JSON.parse(localStorage.getItem('boatRacerHighScores'));
   }
+
   showMainMenu();
 })();
 </script>
