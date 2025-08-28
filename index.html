@@ -171,25 +171,25 @@
     display: flex;
     flex-direction: column;
   }
-  #questList, #shopItems {
+  #questList, #shopItems, #difficultyOptionsContainer {
     max-height: 60vh;
     overflow-y: auto;
     padding-right: 10px;
     scrollbar-width: thin;
     scrollbar-color: #00fff7 rgba(0,100,150,0.3);
   }
-  #questList::-webkit-scrollbar, #shopItems::-webkit-scrollbar {
+  #questList::-webkit-scrollbar, #shopItems::-webkit-scrollbar, #difficultyOptionsContainer::-webkit-scrollbar {
     width: 8px;
   }
-  #questList::-webkit-scrollbar-track, #shopItems::-webkit-scrollbar-track {
+  #questList::-webkit-scrollbar-track, #shopItems::-webkit-scrollbar-track, #difficultyOptionsContainer::-webkit-scrollbar-track {
     background: rgba(0,100,150,0.3);
     border-radius: 10px;
   }
-  #questList::-webkit-scrollbar-thumb, #shopItems::-webkit-scrollbar-thumb {
+  #questList::-webkit-scrollbar-thumb, #shopItems::-webkit-scrollbar-thumb, #difficultyOptionsContainer::-webkit-scrollbar-thumb {
     background: #00fff7;
     border-radius: 10px;
   }
-  #questList::-webkit-scrollbar-thumb:hover, #shopItems::-webkit-scrollbar-thumb:hover {
+  #questList::-webkit-scrollbar-thumb:hover, #shopItems::-webkit-scrollbar-thumb:hover, #difficultyOptionsContainer::-webkit-scrollbar-thumb:hover {
     background: #73c2e9;
   }
   .quest {
@@ -507,22 +507,24 @@
     <button id="shopBtn">Shop</button><br/>
   </div>
   <div id="difficultyMenu">
-    <h1>Select Difficulty</h1>
-    <div class="difficulty-option difficulty-easy" data-difficulty="easy">
-      <div class="difficulty-title">Easy Mode</div>
-      <div class="difficulty-description">Gentle pace, fewer obstacles - perfect for beginners</div>
-    </div>
-    <div class="difficulty-option difficulty-hard" data-difficulty="hard">
-      <div class="difficulty-title">Hard Mode</div>
-      <div class="difficulty-description">High speed, more obstacles - for the true daredevils!</div>
-    </div>
-    <div class="difficulty-option difficulty-hardcore" data-difficulty="hardcore">
-      <div class="difficulty-title">Hardcore Mode</div>
-      <div class="difficulty-description">This game mode has been requested from the community enjoy</div>
-    </div>
-    <div class="difficulty-option difficulty-multiplayer" data-difficulty="multiplayer">
-      <div class="difficulty-title">Peer-to-Peer</div>
-      <div class="difficulty-description">Race against another player in real-time!</div>
+    <h1>Select Game Mode</h1>
+    <div id="difficultyOptionsContainer">
+      <div class="difficulty-option difficulty-easy" data-difficulty="easy">
+        <div class="difficulty-title">Easy Mode</div>
+        <div class="difficulty-description">Gentle pace, fewer obstacles - perfect for beginners</div>
+      </div>
+      <div class="difficulty-option difficulty-hard" data-difficulty="hard">
+        <div class="difficulty-title">Hard Mode</div>
+        <div class="difficulty-description">High speed, more obstacles - for the true daredevils!</div>
+      </div>
+      <div class="difficulty-option difficulty-hardcore" data-difficulty="hardcore">
+        <div class="difficulty-title">Hardcore Mode</div>
+        <div class="difficulty-description">This game mode has been requested from the community enjoy</div>
+      </div>
+      <div class="difficulty-option difficulty-multiplayer" data-difficulty="multiplayer">
+        <div class="difficulty-title">Multiplayer Mode</div>
+        <div class="difficulty-description">Race against another player in real-time!</div>
+      </div>
     </div>
     <button id="startGameBtn">Start Game</button>
   </div>
@@ -666,6 +668,7 @@
   let obstacleSpeed = 2.5;
   let maxObstacles = 3;
   let difficulty = 'easy';
+  let obstaclesDodgedThisRun = 0;
 
   let powerUpSpawnInterval = 3000;
   let lastPowerUpSpawnTime = 0;
@@ -1518,6 +1521,7 @@
 
   function resetGame(){
     hasTakenDamageThisRun = false;
+    obstaclesDodgedThisRun = 0;
     distance = 0;
     startTime = Date.now();
     lastCoinTime = Date.now();
@@ -1538,7 +1542,7 @@
       maxObstacles = 5;
       lives = 3;
       powerUpSpawnInterval = 3000;
-      difficultyIndicator.textContent = "PEER-TO-PEER";
+      difficultyIndicator.textContent = "MULTIPLAYER MODE";
       difficultyIndicator.className = "multiplayer";
       powerUpIndicatorContainer.style.display = 'flex';
       info.style.display = 'none';
