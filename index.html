@@ -4,8 +4,8 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 <title>Retro Boat Racer - Multiplayer Mode</title>
-<!-- Replaced Ably with PeerJS -->
-<script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+<!-- Using Socket.io for multiplayer -->
+<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 <style>
   html, body {
     margin:0; padding:0; overflow:hidden;
@@ -470,26 +470,48 @@
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
   }
-  #roomCodeDisplay {
+  #waitingMessage {
+    margin: 20px 0;
+    font-size: 1.2em;
+    color: #00fff7;
+  }
+  #multiplayerStatus {
     margin: 15px 0;
     padding: 10px;
     background: rgba(0, 0, 0, 0.3);
     border-radius: 8px;
     font-family: monospace;
-    font-size: 1.2em;
-    letter-spacing: 2px;
+    font-size: 1.1em;
     color: #00fff7;
   }
-  #joinRoomInput {
+  #playerList {
     margin: 15px 0;
     padding: 10px;
-    width: 200px;
     background: rgba(0, 0, 0, 0.3);
-    border: 2px solid #00fff7;
     border-radius: 8px;
-    color: #fff;
-    font-size: 1em;
-    text-align: center;
+    font-family: monospace;
+    font-size: 1.1em;
+    color: #00fff7;
+    max-height: 150px;
+    overflow-y: auto;
+  }
+  .player-item {
+    padding: 5px;
+    margin: 5px 0;
+    background: rgba(0, 100, 150, 0.3);
+    border-radius: 5px;
+    display: flex;
+    justify-content: space-between;
+  }
+  .player-name {
+    font-weight: bold;
+  }
+  .player-status {
+    font-size: 0.8em;
+    color: #7cff7c;
+  }
+  .player-status.waiting {
+    color: #ffa500;
   }
 </style>
 </head>
@@ -574,21 +596,14 @@
     <button id="pauseToMenuBtn">Main Menu</button>
   </div>
   <div id="waitingMenu">
-    <h2>Multiplayer Setup</h2>
-    <div id="hostOptions">
-      <p>Host a new game or join with a code:</p>
-      <button id="hostGameBtn">Host Game</button>
-      <div id="roomCodeDisplay" style="display: none;"></div>
-    </div>
-    <div id="joinOptions">
-      <p>Or enter a room code to join:</p>
-      <input type="text" id="joinRoomInput" placeholder="Enter room code" maxlength="10">
-      <button id="joinGameBtn">Join Game</button>
-    </div>
+    <h2>Multiplayer Lobby</h2>
+    <div id="multiplayerStatus">Connecting to server...</div>
+    <div id="waitingMessage">Finding players...</div>
+    <div id="playerList">No players online</div>
     <button id="cancelMultiplayerBtn">Cancel</button>
   </div>
   <div id="winMenu">
-    <h2>You Win!</h2>
+    <h2>Well Done, You Won!</h2>
     <p>Your opponent crashed!</p>
     <button id="winBackBtn">Back to Menu</button>
   </div>
@@ -657,11 +672,10 @@
   const cancelMultiplayerBtn = document.getElementById('cancelMultiplayerBtn');
   const winMenu = document.getElementById('winMenu');
   const winBackBtn = document.getElementById('winBackBtn');
-  // New PeerJS multiplayer elements
-  const hostGameBtn = document.getElementById('hostGameBtn');
-  const joinGameBtn = document.getElementById('joinGameBtn');
-  const joinRoomInput = document.getElementById('joinRoomInput');
-  const roomCodeDisplay = document.getElementById('roomCodeDisplay');
+  const waitingMessage = document.getElementById('waitingMessage');
+  const multiplayerStatus = document.getElementById('multiplayerStatus');
+  const playerList = document.getElementById('playerList');
+  
   // QUEST System DOM
   const questsBtn = document.getElementById('questsBtn');
   const questsMenu = document.getElementById('questsMenu');
@@ -673,13 +687,16 @@
   const shopItemsDiv = document.getElementById('shopItems');
   const shopBackBtn = document.getElementById('shopBackBtn');
   const shopCoinsDisplay = document.getElementById('shopCoins');
-  // Multiplayer variables (PeerJS)
-  let peer = null;
-  let conn = null;
-  let isHost = false;
-  let roomCode = null;
+  
+  // Multiplayer variables (Socket.io)
+  let socket = null;
   let multiplayerMode = false;
   let opponentTime = 0;
+  let connectionEstablished = false;
+  let playerName = '';
+  let opponentName = '';
+  let playersInLobby = [];
+  
   let lives = 3;
   let maxLives = 3;
   let distance = 0;
@@ -1337,137 +1354,135 @@
   let animationFrameId;
   let hasTakenDamageThisRun = false;
   // ===================================================================
-  // PEERJS MULTIPLAYER LOGIC
+  // SOCKET.IO MULTIPLAYER LOGIC
   // ===================================================================
-  // Generates a random room code for sharing
-  function generateRoomCode() {
-    return Math.random().toString(36).substring(2, 8).toUpperCase();
-  }
   
-  // Initialize PeerJS for hosting a game
-  function hostMultiplayerGame() {
-    isHost = true;
-    roomCode = generateRoomCode();
+  // Initialize Socket.io for multiplayer
+  function initMultiplayer() {
+    multiplayerStatus.textContent = "Connecting to server...";
+    waitingMessage.textContent = "Finding players...";
     
-    // Create a new Peer with the room code as ID
-    peer = new Peer(roomCode);
+    // Generate a random player name
+    const adjectives = ['Speedy', 'Brave', 'Swift', 'Bold', 'Nimble', 'Quick', 'Agile', 'Fierce', 'Mighty', 'Rapid'];
+    const nouns = ['Racer', 'Sailor', 'Captain', 'Navigator', 'Pilot', 'Driver', 'Skipper', 'Voyager', 'Adventurer', 'Explorer'];
+    playerName = adjectives[Math.floor(Math.random() * adjectives.length)] + ' ' + nouns[Math.floor(Math.random() * nouns.length)];
     
-    peer.on('open', (id) => {
-      console.log('My peer ID is: ' + id);
-      roomCodeDisplay.textContent = `Room Code: ${roomCode}`;
-      roomCodeDisplay.style.display = 'block';
-      hostGameBtn.style.display = 'none';
+    // Connect to the Socket.io server
+    // Using a free public server for demo purposes
+    // In production, you should set up your own server
+    socket = io('https://boat-racer-server.glitch.me', {
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000
+    });
+    
+    // Handle connection
+    socket.on('connect', () => {
+      console.log('Connected to server with ID:', socket.id);
+      multiplayerStatus.textContent = "Connected! Finding players...";
       
-      // Wait for a connection
-      peer.on('connection', (connection) => {
-        conn = connection;
-        setupConnectionHandlers();
-        
-        // Once connected, start the game
-        conn.on('open', () => {
-          console.log('Connection established!');
-          startMultiplayerGame();
-        });
-      });
-    });
-    
-    peer.on('error', (err) => {
-      console.error('Peer error:', err);
-      alert('Could not host game. Please try again.');
-      cancelMultiplayer();
-    });
-  }
-  
-  // Initialize PeerJS for joining a game
-  function joinMultiplayerGame() {
-    const code = joinRoomInput.value.trim().toUpperCase();
-    if (!code) {
-      alert('Please enter a room code');
-      return;
-    }
-    
-    roomCode = code;
-    isHost = false;
-    
-    // Create a new Peer with a random ID
-    peer = new Peer();
-    
-    peer.on('open', (id) => {
-      console.log('My peer ID is: ' + id);
-      
-      // Connect to the host
-      conn = peer.connect(roomCode);
-      setupConnectionHandlers();
-      
-      conn.on('open', () => {
-        console.log('Connection established!');
-        startMultiplayerGame();
-      });
-    });
-    
-    peer.on('error', (err) => {
-      console.error('Peer error:', err);
-      alert('Could not join game. Please check the room code and try again.');
-      cancelMultiplayer();
-    });
-  }
-  
-  // Set up connection event handlers
-  function setupConnectionHandlers() {
-    // Handle incoming data
-    conn.on('data', (data) => {
-      if (data.type === 'player-state') {
-        opponentTime = data.time;
-        opponentTimeEl.textContent = `Opponent: ${opponentTime}s`;
-      } else if (data.type === 'player-died') {
-        if (!gameOver) {
-          console.log("Opponent crashed. You win!");
-          showWinMenu();
-        }
-      } else if (data.type === 'start-game') {
-        console.log("Received start signal. Let's race!");
-        startMultiplayerGame();
-      }
-    });
-    
-    // Handle connection close
-    conn.on('close', () => {
-      console.log('Connection closed');
-      if (!gameOver) {
-        alert('Connection to opponent lost');
-        cancelMultiplayer();
-      }
+      // Join the multiplayer lobby
+      socket.emit('joinLobby', { name: playerName });
     });
     
     // Handle connection error
-    conn.on('error', (err) => {
-      console.error('Connection error:', err);
-      alert('Connection error occurred');
-      cancelMultiplayer();
+    socket.on('connect_error', (error) => {
+      console.error('Connection error:', error);
+      multiplayerStatus.textContent = "Connection error";
+      waitingMessage.textContent = "Could not connect to server. Please try again later.";
+    });
+    
+    // Handle disconnection
+    socket.on('disconnect', () => {
+      console.log('Disconnected from server');
+      multiplayerStatus.textContent = "Disconnected";
+      waitingMessage.textContent = "Connection to server lost. Please try again.";
+    });
+    
+    // Handle lobby updates
+    socket.on('lobbyUpdate', (data) => {
+      playersInLobby = data.players;
+      updatePlayerList();
+      
+      // If there's an available player and we're not in a game yet
+      if (data.players.length > 1 && !connectionEstablished) {
+        multiplayerStatus.textContent = "Player found! Starting game...";
+        
+        // Find a player to connect with (not ourselves)
+        const otherPlayer = data.players.find(p => p.id !== socket.id);
+        if (otherPlayer) {
+          opponentName = otherPlayer.name;
+          
+          // Request to start a game with this player
+          socket.emit('startGame', { playerId: otherPlayer.id });
+        }
+      }
+    });
+    
+    // Handle game start
+    socket.on('gameStart', (data) => {
+      console.log('Game starting with:', data.opponent);
+      opponentName = data.opponent.name;
+      connectionEstablished = true;
+      startMultiplayerGame();
+    });
+    
+    // Handle opponent's game state updates
+    socket.on('opponentState', (data) => {
+      if (multiplayerMode && !gameOver) {
+        opponentTime = data.time;
+        opponentTimeEl.textContent = `Opponent: ${opponentTime}s`;
+      }
+    });
+    
+    // Handle opponent disconnection
+    socket.on('opponentDisconnected', () => {
+      if (multiplayerMode && !gameOver) {
+        console.log("Opponent disconnected. You win!");
+        showWinMenu();
+      }
     });
   }
   
-  // Transitions from the waiting menu to the actual game
-  function startMultiplayerGame() {
-    resetGame(); // This will set difficulty and other game params
-    multiplayerMode = true; // Explicitly set mode
-    waitingMenu.style.display = 'none';
-    showGameCanvas();
-    loop();
+  // Update the player list in the lobby
+  function updatePlayerList() {
+    playerList.innerHTML = '';
+    
+    if (playersInLobby.length === 0) {
+      playerList.innerHTML = '<div>No players online</div>';
+      return;
+    }
+    
+    playersInLobby.forEach(player => {
+      const playerDiv = document.createElement('div');
+      playerDiv.className = 'player-item';
+      
+      const nameDiv = document.createElement('div');
+      nameDiv.className = 'player-name';
+      nameDiv.textContent = player.id === socket.id ? `${player.name} (You)` : player.name;
+      
+      const statusDiv = document.createElement('div');
+      statusDiv.className = 'player-status waiting';
+      statusDiv.textContent = 'Waiting';
+      
+      playerDiv.appendChild(nameDiv);
+      playerDiv.appendChild(statusDiv);
+      playerList.appendChild(playerDiv);
+    });
   }
   
-  // Sends this player's survival time to the opponent
+  // Send player state to server
   function sendPlayerState() {
-    if (multiplayerMode && conn && conn.open && !gameOver) {
+    if (multiplayerMode && socket && socket.connected && !gameOver) {
       const elapsed = Math.floor((Date.now() - startTime - pauseDuration) / 1000);
-      conn.send({ type: 'player-state', time: elapsed });
+      socket.emit('playerState', { time: elapsed });
     }
   }
   
-  // Tells the opponent that this player has lost
+  // Send player death to server
   function sendPlayerDied() {
-     if (multiplayerMode && conn && conn.open) {
-      conn.send({ type: 'player-died' });
+    if (multiplayerMode && socket && socket.connected) {
+      socket.emit('playerDied');
     }
   }
   
@@ -1476,8 +1491,7 @@
     menu.style.display = 'none';
     difficultyMenu.style.display = 'none';
     waitingMenu.style.display = 'block';
-    roomCodeDisplay.style.display = 'none';
-    hostGameBtn.style.display = 'inline-block';
+    initMultiplayer();
   }
   
   // Shows the "You Win!" screen
@@ -1494,18 +1508,15 @@
     cancelMultiplayer(false); // Clean up connections without hiding the win menu
   }
   
-  // Disconnects from PeerJS and cleans up all multiplayer state
+  // Disconnects from Socket.io and cleans up all multiplayer state
   function cancelMultiplayer(shouldShowMenu = true) {
     console.log("Cleaning up multiplayer session.");
-    if (conn) {
-      conn.close();
+    if (socket) {
+      socket.disconnect();
     }
-    if (peer) {
-      peer.destroy();
-    }
-    peer = null;
-    conn = null;
+    socket = null;
     multiplayerMode = false;
+    connectionEstablished = false;
     if (shouldShowMenu) {
         showMainMenu();
     } else {
@@ -1532,14 +1543,16 @@
     multiplayerMode = false; // Default to single player
     if (difficulty === 'multiplayer') {
       multiplayerMode = true; // Set multiplayer mode
+      // Multiplayer uses hardcore rules
       spawnInterval = 1800;
       obstacleSpeed = 4.0;
       maxObstacles = 5;
-      lives = 3;
-      powerUpSpawnInterval = 3000;
-      difficultyIndicator.textContent = "MULTIPLAYER MODE";
+      lives = 1; // One life like hardcore
+      maxLives = 1;
+      powerUpSpawnInterval = Number.MAX_SAFE_INTEGER; // No power-ups
+      difficultyIndicator.textContent = "MULTIPLAYER";
       difficultyIndicator.className = "multiplayer";
-      powerUpIndicatorContainer.style.display = 'flex';
+      powerUpIndicatorContainer.style.display = 'none'; // No power-ups in multiplayer
       info.style.display = 'none';
       multiplayerInfo.style.display = 'flex';
     }
@@ -1619,8 +1632,8 @@
       lastSpawn = now;
       spawnObstacle();
     }
-    // Power-ups are disabled in hardcore, but enabled in multiplayer
-    if (difficulty !== 'hardcore') {
+    // Power-ups are disabled in hardcore and multiplayer
+    if (difficulty !== 'hardcore' && difficulty !== 'multiplayer') {
       spawnPowerUp();
     }
     if(now - lastDifficultyIncrease > difficultyIncreaseInterval){
@@ -1957,10 +1970,6 @@
   shopBackBtn.addEventListener('click', showMainMenu);
   cancelMultiplayerBtn.addEventListener('click', cancelMultiplayer);
   winBackBtn.addEventListener('click', showMainMenu);
-  
-  // PeerJS multiplayer event listeners
-  hostGameBtn.addEventListener('click', hostMultiplayerGame);
-  joinGameBtn.addEventListener('click', joinMultiplayerGame);
   
   function checkQuestsAtEnd(elapsed) {
     gameStats.totalGamesPlayed++;
