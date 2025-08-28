@@ -4,7 +4,8 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 <title>Retro Boat Racer - Multiplayer Mode</title>
-<script src="https://cdn.ably.io/libraries/ably.min-1.2.js"></script>
+<!-- Replaced Ably with PeerJS -->
+<script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
 <style>
   html, body {
     margin:0; padding:0; overflow:hidden;
@@ -29,10 +30,9 @@
     background-size: 50px 50px;
     z-index: -1;
   }
-  /* Updated info container position */
   #info {
     position: fixed;
-    top: 70px; /* Below the 60px ad banner */
+    top: 70px;
     left: 10px;
     right: 10px;
     height: 50px;
@@ -271,7 +271,6 @@
     mix-blend-mode: screen;
     z-index: 1000;
   }
-  /* NEW: Updated pause button position */
   #pauseBtn {
     position: fixed;
     bottom: 20px;
@@ -292,13 +291,12 @@
     background: rgba(115, 194, 233, 0.7);
     box-shadow: 0 0 14px #73c2e9;
   }
-  /* NEW: Updated power-up indicator position */
   .power-up-indicator {
     position: fixed;
     bottom: 20px;
     left: 20px;
     display: flex;
-    flex-direction: row; /* Changed to row for flat layout */
+    flex-direction: row;
     gap: 10px;
   }
   .power-up-icon {
@@ -320,12 +318,11 @@
   .power-up-icon.shield { background: rgba(0, 200, 255, 0.7); }
   .power-up-icon.slow { background: rgba(255, 100, 0, 0.7); }
   .power-up-icon.life { background: rgba(0, 255, 100, 0.7); }
-  /* NEW: Updated difficulty indicator position */
   #difficultyIndicator {
     position: fixed;
-    top: 130px; /* Aligned with coins/hearts */
-    right: 20px; /* Moved to top-right */
-    transform: none; /* Removed transform */
+    top: 130px;
+    right: 20px;
+    transform: none;
     padding: 5px 15px;
     border-radius: 20px;
     font-weight: bold;
@@ -343,14 +340,14 @@
     position: fixed;
     left: 0;
     right: 0;
-    top: 0; /* Changed from bottom to top */
+    top: 0;
     height: 60px;
     background: #191919;
     display: flex;
     justify-content: center;
     align-items: center;
     z-index: 5000;
-    box-shadow: 0 2px 16px #000a; /* Changed from -2px to 2px */
+    box-shadow: 0 2px 16px #000a;
   }
   #questNotification {
     position: fixed;
@@ -427,7 +424,6 @@
     50% { transform: translate(-50%, -50%) scale(1); opacity: 0.5; }
     100% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; }
   }
-  /* Multiplayer specific styles */
   #multiplayerInfo {
     position: fixed;
     top: 70px;
@@ -473,6 +469,27 @@
   @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
+  }
+  #roomCodeDisplay {
+    margin: 15px 0;
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+    font-family: monospace;
+    font-size: 1.2em;
+    letter-spacing: 2px;
+    color: #00fff7;
+  }
+  #joinRoomInput {
+    margin: 15px 0;
+    padding: 10px;
+    width: 200px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 2px solid #00fff7;
+    border-radius: 8px;
+    color: #fff;
+    font-size: 1em;
+    text-align: center;
   }
 </style>
 </head>
@@ -557,9 +574,17 @@
     <button id="pauseToMenuBtn">Main Menu</button>
   </div>
   <div id="waitingMenu">
-    <h2>Waiting for Player</h2>
-    <p>Looking for another player to join...</p>
-    <div class="loading-spinner"></div>
+    <h2>Multiplayer Setup</h2>
+    <div id="hostOptions">
+      <p>Host a new game or join with a code:</p>
+      <button id="hostGameBtn">Host Game</button>
+      <div id="roomCodeDisplay" style="display: none;"></div>
+    </div>
+    <div id="joinOptions">
+      <p>Or enter a room code to join:</p>
+      <input type="text" id="joinRoomInput" placeholder="Enter room code" maxlength="10">
+      <button id="joinGameBtn">Join Game</button>
+    </div>
     <button id="cancelMultiplayerBtn">Cancel</button>
   </div>
   <div id="winMenu">
@@ -632,28 +657,29 @@
   const cancelMultiplayerBtn = document.getElementById('cancelMultiplayerBtn');
   const winMenu = document.getElementById('winMenu');
   const winBackBtn = document.getElementById('winBackBtn');
-
+  // New PeerJS multiplayer elements
+  const hostGameBtn = document.getElementById('hostGameBtn');
+  const joinGameBtn = document.getElementById('joinGameBtn');
+  const joinRoomInput = document.getElementById('joinRoomInput');
+  const roomCodeDisplay = document.getElementById('roomCodeDisplay');
   // QUEST System DOM
   const questsBtn = document.getElementById('questsBtn');
   const questsMenu = document.getElementById('questsMenu');
   const questsBackBtn = document.getElementById('questsBackBtn');
   const questList = document.getElementById('questList');
-  // NEW: Shop DOM
+  // Shop DOM
   const shopBtn = document.getElementById('shopBtn');
   const shopMenu = document.getElementById('shopMenu');
   const shopItemsDiv = document.getElementById('shopItems');
   const shopBackBtn = document.getElementById('shopBackBtn');
   const shopCoinsDisplay = document.getElementById('shopCoins');
-
-  // Multiplayer variables
-  const YOUR_ABLY_KEY = 'JGqbdA.zroxZA:JuV5CYFNfljSNvUDI8LfGWW1RVUA2VY60AQVvmnHfJs'; // Your Ably API Key
-  let ably = null;
-  let gameChannel = null;
-  let matchmakingChannel = null;
+  // Multiplayer variables (PeerJS)
+  let peer = null;
+  let conn = null;
+  let isHost = false;
+  let roomCode = null;
   let multiplayerMode = false;
   let opponentTime = 0;
-  let gameRoomId = null;
-
   let lives = 3;
   let maxLives = 3;
   let distance = 0;
@@ -669,11 +695,9 @@
   let maxObstacles = 3;
   let difficulty = 'easy';
   let obstaclesDodgedThisRun = 0;
-
   let powerUpSpawnInterval = 3000;
   let lastPowerUpSpawnTime = 0;
   const powerUpTypeChances = { shield: 0.4, slow: 0.4, life: 0.2 };
-
   let flashing = false;
   let flashTime = 0;
   let flashDuration = 300;
@@ -896,7 +920,6 @@
              progText = `Collected: ${gameStats.totalCoinsCollected}/${q.goal}`;
           }
         }
-
         let rewardText = `Unspecified Reward`;
         if (q.reward && q.reward.type === 'coins') {
             rewardText = `${q.reward.amount} Coins`;
@@ -1276,7 +1299,6 @@
     }
     updatePowerUpIndicators();
   }
-
   function spawnPowerUp() {
     const now = Date.now();
     if (now - lastPowerUpSpawnTime > powerUpSpawnInterval) {
@@ -1290,7 +1312,6 @@
       lastPowerUpSpawnTime = now;
     }
   }
-
   function increaseDifficulty() {
     spawnInterval = Math.max(800, spawnInterval - 100);
     obstacleSpeed += 0.3;
@@ -1315,134 +1336,117 @@
   }
   let animationFrameId;
   let hasTakenDamageThisRun = false;
-
   // ===================================================================
-  // FIXED PEER-TO-PEER MULTIPLAYER LOGIC
+  // PEERJS MULTIPLAYER LOGIC
   // ===================================================================
-
-  // Creates or retrieves a unique ID for the player from local storage
-  function getPlayerId() {
-    if (!localStorage.getItem("boatRacerPlayerId")) {
-      localStorage.setItem("boatRacerPlayerId", "player_" + Math.random().toString(36).substr(2, 9));
-    }
-    return localStorage.getItem("boatRacerPlayerId");
+  // Generates a random room code for sharing
+  function generateRoomCode() {
+    return Math.random().toString(36).substring(2, 8).toUpperCase();
   }
-
-  // Generates a random, unique ID for a game room
-  function generateRoomId() {
-    return "boat-race-" + Math.random().toString(36).substr(2, 9);
-  }
-
-  // Called when the user clicks "Start Game" in Multiplayer mode
-  function initMultiplayer() {
-    const playerId = getPlayerId();
-    showWaitingMenu(); // Show "Waiting for Player..." screen
-
-    // NOTE: In a real production app, use token authentication instead of exposing your API key.
-    ably = new Ably.Realtime({ key: YOUR_ABLY_KEY, clientId: playerId });
-
-    ably.connection.on('connected', () => {
-        console.log('Successfully connected to Ably!');
-        startMatchmaking(playerId);
-    });
-
-    ably.connection.on('failed', (error) => {
-        console.error('Ably connection failed:', error);
-        alert('Could not connect to multiplayer service. Please try again later.');
-        cancelMultiplayer();
-    });
-  }
-
-  // Handles joining the public lobby and finding an opponent
-  function startMatchmaking(playerId) {
-      matchmakingChannel = ably.channels.get('boat-racer-matchmaking-lobby');
-
-      // Subscribe to invites first, so we don't miss one from an opponent who finds us immediately.
-      matchmakingChannel.subscribe('game-invite', (message) => {
-          if (message.data.players.includes(playerId)) {
-              console.log(`Received invite to game room: ${message.data.roomId}`);
-              
-              // Clean up matchmaking channel and join the game
-              matchmakingChannel.presence.leave();
-              matchmakingChannel.detach();
-              matchmakingChannel = null;
-              joinGameRoom(message.data.roomId);
-          }
-      });
-
-      // Now, enter presence to announce we are looking for a game.
-      matchmakingChannel.presence.enter();
-      console.log("Entered matchmaking lobby. Looking for an opponent...");
-
-      const findOpponent = () => {
-          matchmakingChannel.presence.get((err, members) => {
-              if (err) return console.error("Error getting presence members:", err);
-              
-              const opponent = members.find(m => m.clientId !== playerId);
-
-              if (opponent) {
-                  // To prevent both players creating a game, the one with the smaller ID acts as the host.
-                  if (playerId < opponent.clientId) {
-                      console.log(`Found opponent: ${opponent.clientId}. Creating game...`);
-                      const newRoomId = generateRoomId();
-                      
-                      // Publish the invite on the lobby channel for both players to see.
-                      matchmakingChannel.publish('game-invite', {
-                          roomId: newRoomId,
-                          players: [playerId, opponent.clientId]
-                      });
-                  }
-              }
-          });
-      };
-
-      // Check for an opponent whenever someone new enters the lobby.
-      matchmakingChannel.presence.subscribe('enter', findOpponent);
-      // Also check right away, in case someone was already waiting.
-      findOpponent();
-  }
-
-  // Handles joining the private game room and syncing the start
-  function joinGameRoom(roomId) {
-      gameRoomId = roomId;
-      gameChannel = ably.channels.get(gameRoomId);
-
-      // Subscribe to game events
-      gameChannel.subscribe('player-state', (message) => {
-          if (message.clientId !== ably.auth.clientId) {
-              opponentTime = message.data.time;
-              opponentTimeEl.textContent = `Opponent: ${opponentTime}s`;
-          }
-      });
-
-      gameChannel.subscribe('player-died', (message) => {
-          if (message.clientId !== ably.auth.clientId && !gameOver) {
-              console.log("Opponent crashed. You win!");
-              showWinMenu();
-          }
-      });
-
-      gameChannel.subscribe('start-game', () => {
-          console.log("Received start signal. Let's race!");
+  
+  // Initialize PeerJS for hosting a game
+  function hostMultiplayerGame() {
+    isHost = true;
+    roomCode = generateRoomCode();
+    
+    // Create a new Peer with the room code as ID
+    peer = new Peer(roomCode);
+    
+    peer.on('open', (id) => {
+      console.log('My peer ID is: ' + id);
+      roomCodeDisplay.textContent = `Room Code: ${roomCode}`;
+      roomCodeDisplay.style.display = 'block';
+      hostGameBtn.style.display = 'none';
+      
+      // Wait for a connection
+      peer.on('connection', (connection) => {
+        conn = connection;
+        setupConnectionHandlers();
+        
+        // Once connected, start the game
+        conn.on('open', () => {
+          console.log('Connection established!');
           startMultiplayerGame();
+        });
       });
-
-      // Use presence in the game room to sync up.
-      gameChannel.presence.subscribe('enter', () => {
-          gameChannel.presence.get((err, members) => {
-              if (members.length === 2) {
-                  // Both players are here. The host sends the start signal.
-                  const opponent = members.find(m => m.clientId !== ably.auth.clientId);
-                  if (ably.auth.clientId < opponent.clientId) {
-                      console.log("Both players ready. Host sending start signal.");
-                      gameChannel.publish('start-game', { start: true });
-                  }
-              }
-          });
-      });
-      gameChannel.presence.enter();
+    });
+    
+    peer.on('error', (err) => {
+      console.error('Peer error:', err);
+      alert('Could not host game. Please try again.');
+      cancelMultiplayer();
+    });
   }
-
+  
+  // Initialize PeerJS for joining a game
+  function joinMultiplayerGame() {
+    const code = joinRoomInput.value.trim().toUpperCase();
+    if (!code) {
+      alert('Please enter a room code');
+      return;
+    }
+    
+    roomCode = code;
+    isHost = false;
+    
+    // Create a new Peer with a random ID
+    peer = new Peer();
+    
+    peer.on('open', (id) => {
+      console.log('My peer ID is: ' + id);
+      
+      // Connect to the host
+      conn = peer.connect(roomCode);
+      setupConnectionHandlers();
+      
+      conn.on('open', () => {
+        console.log('Connection established!');
+        startMultiplayerGame();
+      });
+    });
+    
+    peer.on('error', (err) => {
+      console.error('Peer error:', err);
+      alert('Could not join game. Please check the room code and try again.');
+      cancelMultiplayer();
+    });
+  }
+  
+  // Set up connection event handlers
+  function setupConnectionHandlers() {
+    // Handle incoming data
+    conn.on('data', (data) => {
+      if (data.type === 'player-state') {
+        opponentTime = data.time;
+        opponentTimeEl.textContent = `Opponent: ${opponentTime}s`;
+      } else if (data.type === 'player-died') {
+        if (!gameOver) {
+          console.log("Opponent crashed. You win!");
+          showWinMenu();
+        }
+      } else if (data.type === 'start-game') {
+        console.log("Received start signal. Let's race!");
+        startMultiplayerGame();
+      }
+    });
+    
+    // Handle connection close
+    conn.on('close', () => {
+      console.log('Connection closed');
+      if (!gameOver) {
+        alert('Connection to opponent lost');
+        cancelMultiplayer();
+      }
+    });
+    
+    // Handle connection error
+    conn.on('error', (err) => {
+      console.error('Connection error:', err);
+      alert('Connection error occurred');
+      cancelMultiplayer();
+    });
+  }
+  
   // Transitions from the waiting menu to the actual game
   function startMultiplayerGame() {
     resetGame(); // This will set difficulty and other game params
@@ -1451,19 +1455,19 @@
     showGameCanvas();
     loop();
   }
-
+  
   // Sends this player's survival time to the opponent
   function sendPlayerState() {
-    if (multiplayerMode && gameChannel && gameChannel.state === 'attached' && !gameOver) {
+    if (multiplayerMode && conn && conn.open && !gameOver) {
       const elapsed = Math.floor((Date.now() - startTime - pauseDuration) / 1000);
-      gameChannel.publish("player-state", { time: elapsed });
+      conn.send({ type: 'player-state', time: elapsed });
     }
   }
-
+  
   // Tells the opponent that this player has lost
   function sendPlayerDied() {
-     if (multiplayerMode && gameChannel && gameChannel.state === 'attached') {
-      gameChannel.publish("player-died", { died: true });
+     if (multiplayerMode && conn && conn.open) {
+      conn.send({ type: 'player-died' });
     }
   }
   
@@ -1472,43 +1476,36 @@
     menu.style.display = 'none';
     difficultyMenu.style.display = 'none';
     waitingMenu.style.display = 'block';
+    roomCodeDisplay.style.display = 'none';
+    hostGameBtn.style.display = 'inline-block';
   }
-
+  
   // Shows the "You Win!" screen
   function showWinMenu() {
     if (gameOver) return; // Prevent running multiple times
     gameOver = true;
     cancelAnimationFrame(animationFrameId);
     winMenu.style.display = 'block';
-
     // Hide game elements
     canvas.style.display = 'none';
     pauseBtn.style.display = 'none';
     difficultyIndicator.style.display = 'none';
     multiplayerInfo.style.display = 'none';
-
     cancelMultiplayer(false); // Clean up connections without hiding the win menu
   }
-
-  // Disconnects from Ably and cleans up all multiplayer state
+  
+  // Disconnects from PeerJS and cleans up all multiplayer state
   function cancelMultiplayer(shouldShowMenu = true) {
     console.log("Cleaning up multiplayer session.");
-    if (gameChannel) {
-        gameChannel.presence.leave();
-        gameChannel.detach();
+    if (conn) {
+      conn.close();
     }
-    if (matchmakingChannel) {
-        matchmakingChannel.presence.leave();
-        matchmakingChannel.detach();
+    if (peer) {
+      peer.destroy();
     }
-    if (ably && ably.connection.state === 'connected') {
-        ably.close();
-    }
-    ably = null;
-    gameChannel = null;
-    matchmakingChannel = null;
+    peer = null;
+    conn = null;
     multiplayerMode = false;
-
     if (shouldShowMenu) {
         showMainMenu();
     } else {
@@ -1518,7 +1515,6 @@
   // ===================================================================
   // END OF MULTIPLAYER LOGIC
   // ===================================================================
-
   function resetGame(){
     hasTakenDamageThisRun = false;
     obstaclesDodgedThisRun = 0;
@@ -1534,7 +1530,6 @@
     maxLives = 3;
     powerUpIndicatorContainer.style.display = 'none';
     multiplayerMode = false; // Default to single player
-
     if (difficulty === 'multiplayer') {
       multiplayerMode = true; // Set multiplayer mode
       spawnInterval = 1800;
@@ -1579,7 +1574,6 @@
       difficultyIndicator.className = "easy";
       powerUpIndicatorContainer.style.display = 'flex';
     }
-
     difficultyIndicator.style.display = 'block';
     pauseDuration = 0;
     hasShield = hasStartingShield;
@@ -1595,7 +1589,6 @@
   function updateInfo(){
     let elapsed = Math.floor((Date.now() - startTime - pauseDuration) / 1000);
     if(elapsed < 0) elapsed = 0;
-
     if (multiplayerMode) {
       playerTimeEl.textContent = `Your Time: ${elapsed}s`;
       sendPlayerState();
@@ -1678,7 +1671,6 @@
     if(keys['ArrowLeft'] || keys['a']) boat.x -= boat.speed;
     if(keys['ArrowRight'] || keys['d']) boat.x += boat.speed;
     boat.x = Math.min(Math.max(0, boat.x), canvas.width - boat.w);
-
     updateFlash();
     updateInfo();
   }
@@ -1731,9 +1723,7 @@
     flashOverlay.style.display = 'none';
     pauseBtn.style.display = 'none';
     difficultyIndicator.style.display = 'none';
-
     const elapsed = Math.floor((Date.now()-startTime - pauseDuration)/1000);
-
     if (multiplayerMode) {
         gameOverTitle.textContent = "You Lost!";
         finalScoreP.textContent = `You survived for ${elapsed}s.`;
@@ -1787,7 +1777,6 @@
     `;
     skinsHeader.textContent = categories['skins'];
     shopItemsDiv.appendChild(skinsHeader);
-
     shopSkins.forEach(item => {
       const div = document.createElement('div');
       div.className = 'shop-item';
@@ -1855,7 +1844,6 @@
         shopItemsDiv.appendChild(div);
     });
   }
-
   function triggerPurchaseEffect() {
     purchaseEffect.classList.add('active');
     setTimeout(() => {
@@ -1938,7 +1926,7 @@
   
   startGameBtn.addEventListener('click', () => {
     if (difficulty === 'multiplayer') {
-      initMultiplayer();
+      showWaitingMenu();
     } else {
       resetGame();
       showGameCanvas();
@@ -1969,6 +1957,10 @@
   shopBackBtn.addEventListener('click', showMainMenu);
   cancelMultiplayerBtn.addEventListener('click', cancelMultiplayer);
   winBackBtn.addEventListener('click', showMainMenu);
+  
+  // PeerJS multiplayer event listeners
+  hostGameBtn.addEventListener('click', hostMultiplayerGame);
+  joinGameBtn.addEventListener('click', joinMultiplayerGame);
   
   function checkQuestsAtEnd(elapsed) {
     gameStats.totalGamesPlayed++;
@@ -2081,7 +2073,6 @@
   if(localStorage.getItem('boatRacerHighScores')) {
     highScores = JSON.parse(localStorage.getItem('boatRacerHighScores'));
   }
-
   showMainMenu();
 })();
 </script>
