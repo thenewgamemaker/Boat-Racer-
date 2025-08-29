@@ -4,8 +4,8 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 <title>Retro Boat Racer - Multiplayer Mode</title>
-<!-- Using Socket.io for multiplayer -->
-<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+<!-- Using PeerJS for peer-to-peer multiplayer -->
+<script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
 <style>
   html, body {
     margin:0; padding:0; overflow:hidden;
@@ -513,6 +513,96 @@
   .player-status.waiting {
     color: #ffa500;
   }
+  .public-matchmaking {
+    margin: 20px 0;
+    text-align: center;
+  }
+  .matchmaking-status {
+    font-size: 1.1em;
+    margin: 15px 0;
+    color: #00fff7;
+  }
+  .players-waiting {
+    margin: 15px 0;
+    font-size: 1.0em;
+    color: #ffa500;
+  }
+  .connection-options {
+    margin: 20px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+  }
+  .connection-option {
+    padding: 15px;
+    border-radius: 10px;
+    background: rgba(0, 100, 150, 0.3);
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+  .connection-option:hover {
+    background: rgba(0, 150, 200, 0.4);
+    transform: scale(1.02);
+  }
+  .connection-option h3 {
+    margin-top: 0;
+    color: #00fff7;
+  }
+  .connection-option p {
+    margin-bottom: 0;
+    font-size: 0.9em;
+    color: #aaf;
+  }
+  .server-status {
+    margin: 10px 0;
+    padding: 8px;
+    border-radius: 5px;
+    font-size: 0.9em;
+  }
+  .server-online {
+    background: rgba(0, 200, 0, 0.2);
+    color: #7cff7c;
+  }
+  .server-offline {
+    background: rgba(200, 0, 0, 0.2);
+    color: #ff6b6b;
+  }
+  .quick-match {
+    margin: 20px 0;
+    text-align: center;
+  }
+  .quick-match-btn {
+    background: linear-gradient(45deg, #9c27b0, #673ab7);
+    font-size: 1.2em;
+    padding: 15px 30px;
+    margin: 10px 0;
+  }
+  .quick-match-btn:hover {
+    background: linear-gradient(45deg, #673ab7, #9c27b0);
+  }
+  .server-list {
+    margin: 15px 0;
+    text-align: left;
+    font-size: 0.9em;
+    color: #aaf;
+  }
+  .server-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 5px 0;
+  }
+  .server-name {
+    font-weight: bold;
+  }
+  .server-ping {
+    color: #7cff7c;
+  }
+  .server-ping.high {
+    color: #ffa500;
+  }
+  .server-ping.very-high {
+    color: #ff6b6b;
+  }
 </style>
 </head>
 <body>
@@ -597,8 +687,49 @@
   </div>
   <div id="waitingMenu">
     <h2>Multiplayer Lobby</h2>
-    <div id="multiplayerStatus">Connecting to server...</div>
+    <div id="multiplayerStatus">Initializing connection...</div>
     <div id="waitingMessage">Finding players...</div>
+    
+    <div class="public-matchmaking">
+      <div class="matchmaking-status" id="matchmakingStatus">Choose an option below</div>
+      <div class="loading-spinner" id="loadingSpinner" style="display: none;"></div>
+      
+      <div class="quick-match">
+        <button id="quickMatchBtn" class="quick-match-btn">Quick Match</button>
+        <p>Find a random opponent to play with</p>
+      </div>
+      
+      <div class="connection-options">
+        <div class="connection-option" id="hostOption">
+          <h3>Host a Game</h3>
+          <p>Create a game room and share the code with a friend</p>
+          <div id="p2pStatus" class="server-status">Checking connection...</div>
+        </div>
+        
+        <div class="connection-option" id="joinOption">
+          <h3>Join a Game</h3>
+          <p>Enter a game code to join a friend's game</p>
+          <div id="joinStatus" class="server-status">Checking connection...</div>
+        </div>
+      </div>
+      
+      <div class="server-list">
+        <h3>Server Status</h3>
+        <div class="server-item">
+          <span class="server-name">STUN Server (Google)</span>
+          <span class="server-ping" id="stunPing">Testing...</span>
+        </div>
+        <div class="server-item">
+          <span class="server-name">TURN Server (OpenRelay)</span>
+          <span class="server-ping" id="turnPing">Testing...</span>
+        </div>
+        <div class="server-item">
+          <span class="server-name">Signaling Server</span>
+          <span class="server-ping" id="signalPing">Testing...</span>
+        </div>
+      </div>
+    </div>
+    
     <div id="playerList">No players online</div>
     <button id="cancelMultiplayerBtn">Cancel</button>
   </div>
@@ -675,6 +806,16 @@
   const waitingMessage = document.getElementById('waitingMessage');
   const multiplayerStatus = document.getElementById('multiplayerStatus');
   const playerList = document.getElementById('playerList');
+  const matchmakingStatus = document.getElementById('matchmakingStatus');
+  const loadingSpinner = document.getElementById('loadingSpinner');
+  const hostOption = document.getElementById('hostOption');
+  const joinOption = document.getElementById('joinOption');
+  const p2pStatus = document.getElementById('p2pStatus');
+  const joinStatus = document.getElementById('joinStatus');
+  const quickMatchBtn = document.getElementById('quickMatchBtn');
+  const stunPing = document.getElementById('stunPing');
+  const turnPing = document.getElementById('turnPing');
+  const signalPing = document.getElementById('signalPing');
   
   // QUEST System DOM
   const questsBtn = document.getElementById('questsBtn');
@@ -688,14 +829,22 @@
   const shopBackBtn = document.getElementById('shopBackBtn');
   const shopCoinsDisplay = document.getElementById('shopCoins');
   
-  // Multiplayer variables (Socket.io)
-  let socket = null;
+  // Multiplayer variables
+  let peer = null;
+  let conn = null;
   let multiplayerMode = false;
   let opponentTime = 0;
   let connectionEstablished = false;
   let playerName = '';
   let opponentName = '';
-  let playersInLobby = [];
+  let isHost = false; // Whether this player is the host
+  let peerId = ''; // This player's peer ID
+  let gameCode = ''; // Game code for sharing
+  let remotePeerId = ''; // Remote player's peer ID
+  let quickMatchMode = false; // Whether we're in quick match mode
+  let quickMatchInterval = null; // Interval for quick match
+  let connectionAttempts = 0; // Number of connection attempts
+  let maxConnectionAttempts = 10; // Maximum connection attempts
   
   let lives = 3;
   let maxLives = 3;
@@ -1354,89 +1503,380 @@
   let animationFrameId;
   let hasTakenDamageThisRun = false;
   // ===================================================================
-  // SOCKET.IO MULTIPLAYER LOGIC
+  // PEER-TO-PEER MULTIPLAYER LOGIC
   // ===================================================================
   
-  // Initialize Socket.io for multiplayer
-  function initMultiplayer() {
-    multiplayerStatus.textContent = "Connecting to server...";
-    waitingMessage.textContent = "Finding players...";
+  // Initialize PeerJS for peer-to-peer multiplayer
+  function initPeerToPeer() {
+    multiplayerStatus.textContent = "Initializing peer connection...";
+    waitingMessage.textContent = "Choose an option below";
+    matchmakingStatus.textContent = "Choose an option below";
+    loadingSpinner.style.display = "none";
     
     // Generate a random player name
     const adjectives = ['Speedy', 'Brave', 'Swift', 'Bold', 'Nimble', 'Quick', 'Agile', 'Fierce', 'Mighty', 'Rapid'];
     const nouns = ['Racer', 'Sailor', 'Captain', 'Navigator', 'Pilot', 'Driver', 'Skipper', 'Voyager', 'Adventurer', 'Explorer'];
     playerName = adjectives[Math.floor(Math.random() * adjectives.length)] + ' ' + nouns[Math.floor(Math.random() * nouns.length)];
     
-    // Connect to the Socket.io server
-    // Using a free public server for demo purposes
-    // In production, you should set up your own server
-    socket = io('https://boat-racer-server.glitch.me', {
-      reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000
+    // Check if PeerJS is available
+    if (typeof Peer === 'undefined') {
+      multiplayerStatus.textContent = "PeerJS not available";
+      p2pStatus.textContent = "Peer-to-Peer: Not available";
+      p2pStatus.className = "server-status server-offline";
+      joinStatus.textContent = "Peer-to-Peer: Not available";
+      joinStatus.className = "server-status server-offline";
+      return;
+    }
+    
+    // Test server connectivity
+    testServerConnectivity();
+    
+    // Initialize PeerJS with multiple fallback servers for high availability
+    peer = new Peer({
+      debug: 0,
+      config: {
+        iceServers: [
+          // Primary STUN server (Google)
+          { urls: 'stun:stun.l.google.com:19302' },
+          // Backup STUN servers
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' },
+          // TURN servers for when STUN fails (OpenRelay)
+          {
+            urls: 'turn:openrelay.metered.ca:80',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+          },
+          {
+            urls: 'turn:openrelay.metered.ca:443',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+          }
+        ]
+      }
     });
     
-    // Handle connection
-    socket.on('connect', () => {
-      console.log('Connected to server with ID:', socket.id);
-      multiplayerStatus.textContent = "Connected! Finding players...";
+    // Handle peer open event
+    peer.on('open', function(id) {
+      peerId = id;
+      console.log('My peer ID is: ' + id);
+      multiplayerStatus.textContent = "Connected to peer network";
+      p2pStatus.textContent = "Peer-to-Peer: Online";
+      p2pStatus.className = "server-status server-online";
+      joinStatus.textContent = "Peer-to-Peer: Online";
+      joinStatus.className = "server-status server-online";
       
-      // Join the multiplayer lobby
-      socket.emit('joinLobby', { name: playerName });
+      // Set up event listeners for multiplayer options
+      quickMatchBtn.addEventListener('click', startQuickMatch);
+      hostOption.addEventListener('click', hostGame);
+      joinOption.addEventListener('click', showJoinSection);
     });
     
-    // Handle connection error
-    socket.on('connect_error', (error) => {
-      console.error('Connection error:', error);
+    // Handle connection errors
+    peer.on('error', function(err) {
+      console.error('Peer error:', err);
       multiplayerStatus.textContent = "Connection error";
-      waitingMessage.textContent = "Could not connect to server. Please try again later.";
+      p2pStatus.textContent = "Peer-to-Peer: Offline";
+      p2pStatus.className = "server-status server-offline";
+      joinStatus.textContent = "Peer-to-Peer: Offline";
+      joinStatus.className = "server-status server-offline";
     });
     
-    // Handle disconnection
-    socket.on('disconnect', () => {
-      console.log('Disconnected from server');
-      multiplayerStatus.textContent = "Disconnected";
-      waitingMessage.textContent = "Connection to server lost. Please try again.";
+    // Handle incoming connections
+    peer.on('connection', function(connection) {
+      console.log('Incoming connection from:', connection.peer);
+      conn = connection;
+      setupConnectionHandlers();
     });
+  }
+  
+  // Test server connectivity
+  function testServerConnectivity() {
+    // Test STUN server
+    const stunStart = Date.now();
+    fetch('https://stun.l.google.com:19302', { mode: 'no-cors' })
+      .then(() => {
+        const stunTime = Date.now() - stunStart;
+        stunPing.textContent = `${stunTime}ms`;
+        stunPing.className = 'server-ping';
+      })
+      .catch(() => {
+        stunPing.textContent = 'Unavailable';
+        stunPing.className = 'server-ping very-high';
+      });
     
-    // Handle lobby updates
-    socket.on('lobbyUpdate', (data) => {
-      playersInLobby = data.players;
-      updatePlayerList();
+    // Test TURN server
+    const turnStart = Date.now();
+    fetch('https://openrelay.metered.ca:80', { mode: 'no-cors' })
+      .then(() => {
+        const turnTime = Date.now() - turnStart;
+        turnPing.textContent = `${turnTime}ms`;
+        turnPing.className = 'server-ping';
+      })
+      .catch(() => {
+        turnPing.textContent = 'Unavailable';
+        turnPing.className = 'server-ping very-high';
+      });
+    
+    // Test signaling server (PeerJS cloud)
+    const signalStart = Date.now();
+    fetch('https://0.peerjs.com', { mode: 'no-cors' })
+      .then(() => {
+        const signalTime = Date.now() - signalStart;
+        signalPing.textContent = `${signalTime}ms`;
+        signalPing.className = 'server-ping';
+      })
+      .catch(() => {
+        signalPing.textContent = 'Unavailable';
+        signalPing.className = 'server-ping very-high';
+      });
+  }
+  
+  // Start quick match
+  function startQuickMatch() {
+    quickMatchMode = true;
+    connectionAttempts = 0;
+    
+    // Hide options and show loading
+    quickMatchBtn.style.display = 'none';
+    hostOption.style.display = 'none';
+    joinOption.style.display = 'none';
+    loadingSpinner.style.display = 'block';
+    matchmakingStatus.textContent = "Searching for opponent...";
+    
+    // Generate a random room ID for quick match
+    const roomId = 'boatracer-quick-' + Math.random().toString(36).substring(2, 9);
+    
+    // Try to connect to random peers
+    quickMatchInterval = setInterval(() => {
+      if (connectionAttempts >= maxConnectionAttempts) {
+        // If we've tried too many times, give up
+        clearInterval(quickMatchInterval);
+        quickMatchInterval = null;
+        loadingSpinner.style.display = 'none';
+        matchmakingStatus.textContent = "No opponents found. Try again later.";
+        quickMatchBtn.style.display = 'block';
+        hostOption.style.display = 'block';
+        joinOption.style.display = 'block';
+        return;
+      }
       
-      // If there's an available player and we're not in a game yet
-      if (data.players.length > 1 && !connectionEstablished) {
-        multiplayerStatus.textContent = "Player found! Starting game...";
-        
-        // Find a player to connect with (not ourselves)
-        const otherPlayer = data.players.find(p => p.id !== socket.id);
-        if (otherPlayer) {
-          opponentName = otherPlayer.name;
-          
-          // Request to start a game with this player
-          socket.emit('startGame', { playerId: otherPlayer.id });
+      // Generate a random peer ID to try to connect to
+      const randomPeerId = 'boatracer-' + Math.random().toString(36).substring(2, 9);
+      console.log('Trying to connect to:', randomPeerId);
+      
+      conn = peer.connect(randomPeerId);
+      
+      conn.on('open', function() {
+        console.log('Connected to:', randomPeerId);
+        clearInterval(quickMatchInterval);
+        quickMatchInterval = null;
+        remotePeerId = randomPeerId;
+        isHost = false;
+        setupConnectionHandlers();
+      });
+      
+      conn.on('error', function(err) {
+        console.error('Connection error:', err);
+        connectionAttempts++;
+      });
+      
+      connectionAttempts++;
+    }, 1000);
+  }
+  
+  // Host a game
+  function hostGame() {
+    isHost = true;
+    quickMatchMode = false;
+    
+    // Generate a random 6-character game code
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    gameCode = '';
+    for (let i = 0; i < 6; i++) {
+      gameCode += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    
+    // Set the peer ID to a predictable value based on the game code
+    const hostPeerId = 'boatracer-host-' + gameCode;
+    
+    // Destroy the old peer and create a new one with the specific ID
+    if (peer) {
+      peer.destroy();
+    }
+    
+    peer = new Peer(hostPeerId, {
+      debug: 0,
+      config: {
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' },
+          {
+            urls: 'turn:openrelay.metered.ca:80',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+          },
+          {
+            urls: 'turn:openrelay.metered.ca:443',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+          }
+        ]
+      }
+    });
+    
+    // Set up peer event handlers
+    peer.on('open', function(id) {
+      peerId = id;
+      console.log('Hosting with peer ID:', id);
+      
+      // Show the game code
+      hostOption.style.display = 'none';
+      joinOption.style.display = 'none';
+      quickMatchBtn.style.display = 'none';
+      
+      const shareCodeDiv = document.createElement('div');
+      shareCodeDiv.className = 'share-code';
+      shareCodeDiv.innerHTML = `
+        <h3>Share This Code</h3>
+        <p>Share this code with your friend so they can join your game</p>
+        <div class="code-display">${gameCode}</div>
+        <button id="copyCodeBtn">Copy Code</button>
+        <button id="cancelHostBtn">Cancel</button>
+      `;
+      waitingMenu.querySelector('.public-matchmaking').appendChild(shareCodeDiv);
+      
+      document.getElementById('copyCodeBtn').addEventListener('click', () => {
+        navigator.clipboard.writeText(gameCode).then(() => {
+          alert('Game code copied to clipboard!');
+        }).catch(() => {
+          alert('Failed to copy code. Please copy it manually.');
+        });
+      });
+      
+      document.getElementById('cancelHostBtn').addEventListener('click', () => {
+        shareCodeDiv.remove();
+        hostOption.style.display = 'block';
+        joinOption.style.display = 'block';
+        quickMatchBtn.style.display = 'block';
+      });
+      
+      // Listen for incoming connections
+      peer.on('connection', function(connection) {
+        console.log('Incoming connection from:', connection.peer);
+        conn = connection;
+        setupConnectionHandlers();
+      });
+    });
+    
+    peer.on('error', function(err) {
+      console.error('Peer error:', err);
+      alert('Error hosting game. Please try again.');
+    });
+  }
+  
+  // Show the join section
+  function showJoinSection() {
+    hostOption.style.display = 'none';
+    joinOption.style.display = 'none';
+    quickMatchBtn.style.display = 'none';
+    
+    const joinCodeDiv = document.createElement('div');
+    joinCodeDiv.className = 'join-code';
+    joinCodeDiv.innerHTML = `
+      <h3>Enter Game Code</h3>
+      <p>Enter the code your friend shared with you</p>
+      <input type="text" class="code-input" id="codeInput" placeholder="Enter code" maxlength="6">
+      <button id="joinGameBtn">Join Game</button>
+      <button id="cancelJoinBtn">Cancel</button>
+    `;
+    waitingMenu.querySelector('.public-matchmaking').appendChild(joinCodeDiv);
+    
+    document.getElementById('joinGameBtn').addEventListener('click', joinGameWithCode);
+    document.getElementById('cancelJoinBtn').addEventListener('click', () => {
+      joinCodeDiv.remove();
+      hostOption.style.display = 'block';
+      joinOption.style.display = 'block';
+      quickMatchBtn.style.display = 'block';
+    });
+    
+    // Allow pressing Enter to join game
+    document.getElementById('codeInput').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        joinGameWithCode();
+      }
+    });
+    
+    document.getElementById('codeInput').focus();
+  }
+  
+  // Join a game with a code
+  function joinGameWithCode() {
+    const code = document.getElementById('codeInput').value.toUpperCase().trim();
+    if (code.length !== 6) {
+      alert('Please enter a valid 6-character code');
+      return;
+    }
+    
+    // Connect to the host using the predictable peer ID
+    remotePeerId = 'boatracer-host-' + code;
+    console.log('Connecting to:', remotePeerId);
+    
+    conn = peer.connect(remotePeerId);
+    
+    conn.on('open', function() {
+      console.log('Connected to:', remotePeerId);
+      setupConnectionHandlers();
+    });
+    
+    conn.on('error', function(err) {
+      console.error('Connection error:', err);
+      alert('Could not connect to the game. Please check the code and try again.');
+    });
+  }
+  
+  // Set up connection event handlers
+  function setupConnectionHandlers() {
+    connectionEstablished = true;
+    
+    // Clear any quick match interval
+    if (quickMatchInterval) {
+      clearInterval(quickMatchInterval);
+      quickMatchInterval = null;
+    }
+    
+    // Remove any UI elements
+    const shareCodeDiv = waitingMenu.querySelector('.share-code');
+    if (shareCodeDiv) shareCodeDiv.remove();
+    
+    const joinCodeDiv = waitingMenu.querySelector('.join-code');
+    if (joinCodeDiv) joinCodeDiv.remove();
+    
+    // Send player name to the other peer
+    conn.send({
+      type: 'playerInfo',
+      name: playerName
+    });
+    
+    // Handle incoming data
+    conn.on('data', function(data) {
+      if (multiplayerMode && !gameOver) {
+        if (data.type === 'playerInfo') {
+          opponentName = data.name;
+          startMultiplayerGame();
+        } else if (data.type === 'gameState') {
+          opponentTime = data.time;
+          opponentTimeEl.textContent = `Opponent: ${opponentTime}s`;
+        } else if (data.type === 'playerDied') {
+          console.log("Opponent crashed. You win!");
+          showWinMenu();
         }
       }
     });
     
-    // Handle game start
-    socket.on('gameStart', (data) => {
-      console.log('Game starting with:', data.opponent);
-      opponentName = data.opponent.name;
-      connectionEstablished = true;
-      startMultiplayerGame();
-    });
-    
-    // Handle opponent's game state updates
-    socket.on('opponentState', (data) => {
-      if (multiplayerMode && !gameOver) {
-        opponentTime = data.time;
-        opponentTimeEl.textContent = `Opponent: ${opponentTime}s`;
-      }
-    });
-    
-    // Handle opponent disconnection
-    socket.on('opponentDisconnected', () => {
+    // Handle connection close
+    conn.on('close', function() {
       if (multiplayerMode && !gameOver) {
         console.log("Opponent disconnected. You win!");
         showWinMenu();
@@ -1444,45 +1884,23 @@
     });
   }
   
-  // Update the player list in the lobby
-  function updatePlayerList() {
-    playerList.innerHTML = '';
-    
-    if (playersInLobby.length === 0) {
-      playerList.innerHTML = '<div>No players online</div>';
-      return;
-    }
-    
-    playersInLobby.forEach(player => {
-      const playerDiv = document.createElement('div');
-      playerDiv.className = 'player-item';
-      
-      const nameDiv = document.createElement('div');
-      nameDiv.className = 'player-name';
-      nameDiv.textContent = player.id === socket.id ? `${player.name} (You)` : player.name;
-      
-      const statusDiv = document.createElement('div');
-      statusDiv.className = 'player-status waiting';
-      statusDiv.textContent = 'Waiting';
-      
-      playerDiv.appendChild(nameDiv);
-      playerDiv.appendChild(statusDiv);
-      playerList.appendChild(playerDiv);
-    });
-  }
-  
-  // Send player state to server
+  // Send player state to opponent
   function sendPlayerState() {
-    if (multiplayerMode && socket && socket.connected && !gameOver) {
+    if (multiplayerMode && conn && conn.open && !gameOver) {
       const elapsed = Math.floor((Date.now() - startTime - pauseDuration) / 1000);
-      socket.emit('playerState', { time: elapsed });
+      conn.send({
+        type: 'gameState',
+        time: elapsed
+      });
     }
   }
   
-  // Send player death to server
+  // Send player death to opponent
   function sendPlayerDied() {
-    if (multiplayerMode && socket && socket.connected) {
-      socket.emit('playerDied');
+    if (multiplayerMode && conn && conn.open) {
+      conn.send({
+        type: 'playerDied'
+      });
     }
   }
   
@@ -1491,7 +1909,7 @@
     menu.style.display = 'none';
     difficultyMenu.style.display = 'none';
     waitingMenu.style.display = 'block';
-    initMultiplayer();
+    initPeerToPeer();
   }
   
   // Shows the "You Win!" screen
@@ -1508,15 +1926,38 @@
     cancelMultiplayer(false); // Clean up connections without hiding the win menu
   }
   
-  // Disconnects from Socket.io and cleans up all multiplayer state
+  // Disconnects from peer and cleans up all multiplayer state
   function cancelMultiplayer(shouldShowMenu = true) {
     console.log("Cleaning up multiplayer session.");
-    if (socket) {
-      socket.disconnect();
+    if (quickMatchInterval) {
+      clearInterval(quickMatchInterval);
+      quickMatchInterval = null;
     }
-    socket = null;
+    if (conn) {
+      conn.close();
+    }
+    if (peer) {
+      peer.destroy();
+    }
+    conn = null;
+    peer = null;
     multiplayerMode = false;
     connectionEstablished = false;
+    quickMatchMode = false;
+    
+    // Remove any UI elements
+    const shareCodeDiv = waitingMenu.querySelector('.share-code');
+    if (shareCodeDiv) shareCodeDiv.remove();
+    
+    const joinCodeDiv = waitingMenu.querySelector('.join-code');
+    if (joinCodeDiv) joinCodeDiv.remove();
+    
+    // Reset UI elements
+    quickMatchBtn.style.display = 'block';
+    hostOption.style.display = 'block';
+    joinOption.style.display = 'block';
+    loadingSpinner.style.display = 'none';
+    
     if (shouldShowMenu) {
         showMainMenu();
     } else {
@@ -1738,20 +2179,20 @@
     difficultyIndicator.style.display = 'none';
     const elapsed = Math.floor((Date.now()-startTime - pauseDuration)/1000);
     if (multiplayerMode) {
-        gameOverTitle.textContent = "You Lost!";
-        finalScoreP.textContent = `You survived for ${elapsed}s.`;
-        bestScoreP.style.display = 'none';
-        restartBtn.style.display = 'none';
-        cancelMultiplayer(false); // Clean up connections
+      gameOverTitle.textContent = "You Lost!";
+      finalScoreP.textContent = `You survived for ${elapsed}s.`;
+      bestScoreP.style.display = 'none';
+      restartBtn.style.display = 'none';
+      cancelMultiplayer(false); // Clean up connections
     } else {
-        gameOverTitle.textContent = "Game Over!";
-        finalScoreP.textContent = `Your Time: ${elapsed}s`;
-        bestScoreP.textContent = `Best Time: ${highScores[difficulty]}s`;
-        bestScoreP.style.display = 'block';
-        restartBtn.style.display = 'inline-block';
-        gameStats.longestSurvival = Math.max(gameStats.longestSurvival, elapsed);
-        gameStats.totalTimeSurvived += elapsed;
-        checkQuestsAtEnd(elapsed);
+      gameOverTitle.textContent = "Game Over!";
+      finalScoreP.textContent = `Your Time: ${elapsed}s`;
+      bestScoreP.textContent = `Best Time: ${highScores[difficulty]}s`;
+      bestScoreP.style.display = 'block';
+      restartBtn.style.display = 'inline-block';
+      gameStats.longestSurvival = Math.max(gameStats.longestSurvival, elapsed);
+      gameStats.totalTimeSurvived += elapsed;
+      checkQuestsAtEnd(elapsed);
     }
   }
   function showGameCanvas(){
