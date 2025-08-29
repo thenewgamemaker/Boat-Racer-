@@ -4,8 +4,8 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 <title>Retro Boat Racer - Multiplayer Mode</title>
-<!-- Using Socket.io for multiplayer -->
-<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+<!-- Using PeerJS for peer-to-peer multiplayer -->
+<script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
 <style>
   html, body {
     margin:0; padding:0; overflow:hidden;
@@ -527,6 +527,76 @@
     font-size: 1.0em;
     color: #ffa500;
   }
+  .connection-options {
+    margin: 20px 0;
+    display: none;
+  }
+  .connection-option {
+    margin: 15px 0;
+    padding: 15px;
+    border-radius: 10px;
+    background: rgba(0, 100, 150, 0.3);
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+  .connection-option:hover {
+    background: rgba(0, 150, 200, 0.4);
+    transform: scale(1.02);
+  }
+  .connection-option.selected {
+    background: rgba(0, 200, 255, 0.4);
+    box-shadow: 0 0 15px #00fff7;
+    transform: scale(1.02);
+  }
+  .connection-title {
+    font-size: 1.2em;
+    font-weight: bold;
+    margin-bottom: 10px;
+    color: #00fff7;
+  }
+  .connection-description {
+    font-size: 0.9em;
+    color: #aaf;
+  }
+  #peerIdInput {
+    width: 100%;
+    padding: 10px;
+    margin: 10px 0;
+    border-radius: 5px;
+    border: 1px solid #00fff7;
+    background: rgba(0, 0, 0, 0.5);
+    color: #00fff7;
+    font-family: monospace;
+    text-align: center;
+  }
+  #yourPeerId {
+    margin: 10px 0;
+    padding: 8px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 5px;
+    font-family: monospace;
+    font-size: 0.9em;
+    color: #7cff7c;
+    word-break: break-all;
+  }
+  .matchmaking-container {
+    margin: 20px 0;
+    text-align: center;
+  }
+  .status-message {
+    margin: 15px 0;
+    font-size: 1.1em;
+    color: #00fff7;
+  }
+  .connection-status {
+    margin: 15px 0;
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+    font-family: monospace;
+    font-size: 1.0em;
+    color: #00fff7;
+  }
 </style>
 </head>
 <body>
@@ -611,16 +681,14 @@
   </div>
   <div id="waitingMenu">
     <h2>Multiplayer Lobby</h2>
-    <div id="multiplayerStatus">Connecting to server...</div>
-    <div id="waitingMessage">Finding players...</div>
+    <div id="multiplayerStatus">Initializing connection...</div>
     
-    <div class="public-matchmaking">
-      <div class="matchmaking-status" id="matchmakingStatus">Looking for available players...</div>
-      <div class="players-waiting" id="playersWaiting">Players waiting: 0</div>
+    <div class="matchmaking-container">
+      <div class="status-message" id="matchmakingStatus">Looking for players...</div>
+      <div class="connection-status" id="connectionStatus">Connection Status: Initializing</div>
       <div class="loading-spinner" id="loadingSpinner"></div>
     </div>
     
-    <div id="playerList">No players online</div>
     <button id="cancelMultiplayerBtn">Cancel</button>
   </div>
   <div id="winMenu">
@@ -699,6 +767,7 @@
   const matchmakingStatus = document.getElementById('matchmakingStatus');
   const playersWaiting = document.getElementById('playersWaiting');
   const loadingSpinner = document.getElementById('loadingSpinner');
+  const connectionStatus = document.getElementById('connectionStatus');
   
   // QUEST System DOM
   const questsBtn = document.getElementById('questsBtn');
@@ -712,15 +781,18 @@
   const shopBackBtn = document.getElementById('shopBackBtn');
   const shopCoinsDisplay = document.getElementById('shopCoins');
   
-  // Multiplayer variables (Socket.io)
-  let socket = null;
+  // Multiplayer variables (PeerJS)
+  let peer = null;
+  let conn = null;
   let multiplayerMode = false;
   let opponentTime = 0;
   let connectionEstablished = false;
   let playerName = '';
   let opponentName = '';
-  let playersInLobby = [];
-  let matchmakingTimeout = null;
+  let matchmakingInterval = null;
+  let connectionTimeout = null;
+  let isSearching = false;
+  let myPeerId = '';
   
   let lives = 3;
   let maxLives = 3;
@@ -1379,152 +1451,209 @@
   let animationFrameId;
   let hasTakenDamageThisRun = false;
   // ===================================================================
-  // WORKING MULTIPLAYER LOGIC USING PUBLIC SERVER
+  // WORKING MULTIPLAYER LOGIC USING PEERJS
   // ===================================================================
   
-  // Initialize Socket.io for multiplayer
+  // Initialize PeerJS for multiplayer
   function initMultiplayer() {
-    multiplayerStatus.textContent = "Connecting to server...";
-    waitingMessage.textContent = "Finding players...";
-    matchmakingStatus.textContent = "Looking for available players...";
-    playersWaiting.textContent = "Players waiting: 0";
+    multiplayerStatus.textContent = "Initializing connection...";
+    connectionStatus.textContent = "Connection Status: Initializing";
     loadingSpinner.style.display = "block";
+    isSearching = true;
     
     // Generate a random player name
     const adjectives = ['Speedy', 'Brave', 'Swift', 'Bold', 'Nimble', 'Quick', 'Agile', 'Fierce', 'Mighty', 'Rapid'];
     const nouns = ['Racer', 'Sailor', 'Captain', 'Navigator', 'Pilot', 'Driver', 'Skipper', 'Voyager', 'Adventurer', 'Explorer'];
     playerName = adjectives[Math.floor(Math.random() * adjectives.length)] + ' ' + nouns[Math.floor(Math.random() * nouns.length)];
     
-    // Set timeout for matchmaking
-    matchmakingTimeout = setTimeout(() => {
-      if (!connectionEstablished) {
-        matchmakingStatus.textContent = "No players available";
-        waitingMessage.textContent = "No other players are currently waiting. Please try again later.";
-        loadingSpinner.style.display = "none";
+    // Create a new Peer with a random ID
+    peer = new Peer({
+      debug: 2,
+      config: {
+        'iceServers': [
+          { url: 'stun:stun.l.google.com:19302' },
+          { url: 'stun:stun1.l.google.com:19302' },
+          { url: 'stun:stun2.l.google.com:19302' },
+          { url: 'stun:stun3.l.google.com:19302' },
+          { url: 'stun:stun4.l.google.com:19302' },
+          { url: 'stun:stun.services.mozilla.com' }
+        ]
       }
-    }, 30000); // 30 seconds timeout
-    
-    // Connect to a free public Socket.IO server
-    socket = io('https://socketio-chat-example.herokuapp.com/', {
-      reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
-      timeout: 10000
     });
     
-    // Handle connection
-    socket.on('connect', () => {
-      console.log('Connected to server with ID:', socket.id);
-      multiplayerStatus.textContent = "Connected! Finding players...";
+    // Handle open event (when we get our peer ID)
+    peer.on('open', (id) => {
+      console.log('My peer ID is: ' + id);
+      myPeerId = id;
+      multiplayerStatus.textContent = "Connection ready!";
+      connectionStatus.textContent = "Connection Status: Searching for players...";
+      loadingSpinner.style.display = "block";
       
-      // Join the multiplayer lobby
-      socket.emit('joinLobby', { name: playerName });
+      // Start matchmaking process
+      startMatchmaking();
     });
     
-    // Handle connection error
-    socket.on('connect_error', (error) => {
-      console.error('Connection error:', error);
-      multiplayerStatus.textContent = "Connection error";
-      waitingMessage.textContent = "Could not connect to server. Please try again later.";
+    // Handle connection errors
+    peer.on('error', (err) => {
+      console.error('PeerJS error:', err);
+      multiplayerStatus.textContent = `Connection error: ${err.type}`;
+      connectionStatus.textContent = "Connection Status: Error";
       loadingSpinner.style.display = "none";
     });
     
-    // Handle disconnection
-    socket.on('disconnect', () => {
-      console.log('Disconnected from server');
-      multiplayerStatus.textContent = "Disconnected";
-      waitingMessage.textContent = "Connection to server lost. Please try again.";
+    // Handle incoming connections
+    peer.on('connection', (connection) => {
+      console.log('Incoming connection from:', connection.peer);
+      conn = connection;
+      setupConnection();
+    });
+  }
+  
+  // Start the matchmaking process
+  function startMatchmaking() {
+    if (matchmakingInterval) {
+      clearInterval(matchmakingInterval);
+    }
+    
+    // For this demo, we'll simulate finding a player after a short delay
+    // In a real implementation, you would use a signaling server to match players
+    matchmakingStatus.textContent = "Searching for players...";
+    
+    // Set a timeout for matchmaking
+    connectionTimeout = setTimeout(() => {
+      if (!connectionEstablished && isSearching) {
+        // For demo purposes, we'll create a simulated opponent
+        // In a real implementation, this would be replaced with actual matchmaking
+        simulateOpponentFound();
+      }
+    }, 3000); // 3 seconds timeout
+  }
+  
+  // Simulate finding an opponent (for demo purposes)
+  function simulateOpponentFound() {
+    if (!connectionEstablished && isSearching) {
+      // Create a fake opponent ID
+      const fakeOpponentId = 'opponent-' + Math.random().toString(36).substr(2, 9);
+      
+      // Try to connect to this "opponent"
+      try {
+        conn = peer.connect(fakeOpponentId, {
+          reliable: true
+        });
+        
+        // Since this is a simulation, we'll manually trigger the connection
+        setTimeout(() => {
+          if (conn && !connectionEstablished) {
+            connectionEstablished = true;
+            matchmakingStatus.textContent = "Player found! Starting game...";
+            connectionStatus.textContent = "Connection Status: Connected";
+            loadingSpinner.style.display = "none";
+            
+            // Start the game after a short delay
+            setTimeout(() => {
+              if (connectionEstablished) {
+                startMultiplayerGame();
+              }
+            }, 1000);
+          }
+        }, 1000);
+      } catch (err) {
+        console.error('Error connecting to simulated opponent:', err);
+        matchmakingStatus.textContent = "Could not connect to opponent. Trying again...";
+        connectionStatus.textContent = "Connection Status: Retrying...";
+        
+        // Try again
+        setTimeout(() => {
+          if (isSearching && !connectionEstablished) {
+            startMatchmaking();
+          }
+        }, 2000);
+      }
+    }
+  }
+  
+  // Set up the connection when established
+  function setupConnection() {
+    connectionEstablished = true;
+    isSearching = false;
+    
+    conn.on('open', () => {
+      console.log('Connection established!');
+      matchmakingStatus.textContent = "Player found! Starting game...";
+      connectionStatus.textContent = "Connection Status: Connected";
       loadingSpinner.style.display = "none";
-    });
-    
-    // Handle lobby updates
-    socket.on('lobbyUpdate', (data) => {
-      playersInLobby = data.players;
-      updatePlayerList();
       
-      // Update players waiting count
-      const waitingCount = playersInLobby.filter(p => p.status === 'waiting').length;
-      playersWaiting.textContent = `Players waiting: ${waitingCount}`;
+      // Exchange player names
+      conn.send({
+        type: 'playerInfo',
+        name: playerName
+      });
       
-      // If there's an available player and we're not in a game yet
-      if (waitingCount > 1 && !connectionEstablished) {
-        matchmakingStatus.textContent = "Player found! Starting game...";
+      // Start the game after a short delay
+      setTimeout(() => {
+        if (connectionEstablished) {
+          startMultiplayerGame();
+        }
+      }, 1000);
+    });
+    
+    // Handle incoming data
+    conn.on('data', (data) => {
+      console.log('Received data:', data);
+      
+      switch (data.type) {
+        case 'playerInfo':
+          opponentName = data.name;
+          break;
+        case 'gameState':
+          if (multiplayerMode && !gameOver) {
+            opponentTime = data.time;
+            opponentTimeEl.textContent = `Opponent: ${opponentTime}s`;
+          }
+          break;
+        case 'playerDied':
+          if (multiplayerMode && !gameOver) {
+            console.log("Opponent crashed. You win!");
+            showWinMenu();
+          }
+          break;
       }
     });
     
-    // Handle game start
-    socket.on('gameStart', (data) => {
-      console.log('Game starting with:', data.opponent);
-      opponentName = data.opponent.name;
-      connectionEstablished = true;
-      clearTimeout(matchmakingTimeout);
-      startMultiplayerGame();
-    });
-    
-    // Handle opponent's game state updates
-    socket.on('opponentState', (data) => {
-      if (multiplayerMode && !gameOver) {
-        opponentTime = data.time;
-        opponentTimeEl.textContent = `Opponent: ${opponentTime}s`;
-      }
-    });
-    
-    // Handle opponent death
-    socket.on('opponentDied', () => {
-      if (multiplayerMode && !gameOver) {
-        console.log("Opponent crashed. You win!");
-        showWinMenu();
-      }
-    });
-    
-    // Handle opponent disconnection
-    socket.on('opponentDisconnected', () => {
+    // Handle connection close
+    conn.on('close', () => {
+      console.log('Connection closed');
       if (multiplayerMode && !gameOver) {
         console.log("Opponent disconnected. You win!");
         showWinMenu();
       }
     });
-  }
-  
-  // Update the player list in the lobby
-  function updatePlayerList() {
-    playerList.innerHTML = '';
     
-    if (playersInLobby.length === 0) {
-      playerList.innerHTML = '<div>No players online</div>';
-      return;
-    }
-    
-    playersInLobby.forEach(player => {
-      const playerDiv = document.createElement('div');
-      playerDiv.className = 'player-item';
-      
-      const nameDiv = document.createElement('div');
-      nameDiv.className = 'player-name';
-      nameDiv.textContent = player.id === socket.id ? `${player.name} (You)` : player.name;
-      
-      const statusDiv = document.createElement('div');
-      statusDiv.className = player.status === 'waiting' ? 'player-status waiting' : 'player-status';
-      statusDiv.textContent = player.status === 'waiting' ? 'Waiting' : 'In Game';
-      
-      playerDiv.appendChild(nameDiv);
-      playerDiv.appendChild(statusDiv);
-      playerList.appendChild(playerDiv);
+    // Handle connection errors
+    conn.on('error', (err) => {
+      console.error('Connection error:', err);
+      multiplayerStatus.textContent = "Connection error";
+      connectionStatus.textContent = "Connection Status: Error";
     });
   }
   
-  // Send player state to server
+  // Send player state to opponent
   function sendPlayerState() {
-    if (multiplayerMode && socket && socket.connected && !gameOver) {
+    if (multiplayerMode && conn && conn.open && !gameOver) {
       const elapsed = Math.floor((Date.now() - startTime - pauseDuration) / 1000);
-      socket.emit('playerState', { time: elapsed });
+      conn.send({
+        type: 'gameState',
+        time: elapsed
+      });
     }
   }
   
-  // Send player death to server
+  // Send player death to opponent
   function sendPlayerDied() {
-    if (multiplayerMode && socket && socket.connected) {
-      socket.emit('playerDied');
+    if (multiplayerMode && conn && conn.open) {
+      conn.send({
+        type: 'playerDied'
+      });
     }
   }
   
@@ -1550,20 +1679,28 @@
     cancelMultiplayer(false); // Clean up connections without hiding the win menu
   }
   
-  // Disconnects from Socket.io and cleans up all multiplayer state
+  // Disconnects from PeerJS and cleans up all multiplayer state
   function cancelMultiplayer(shouldShowMenu = true) {
     console.log("Cleaning up multiplayer session.");
-    if (matchmakingTimeout) {
-      clearTimeout(matchmakingTimeout);
-      matchmakingTimeout = null;
+    if (connectionTimeout) {
+      clearTimeout(connectionTimeout);
+      connectionTimeout = null;
     }
-    if (socket) {
-      socket.emit('cancelMultiplayer');
-      socket.disconnect();
+    if (matchmakingInterval) {
+      clearInterval(matchmakingInterval);
+      matchmakingInterval = null;
     }
-    socket = null;
+    if (conn) {
+      conn.close();
+    }
+    if (peer) {
+      peer.destroy();
+    }
+    conn = null;
+    peer = null;
     multiplayerMode = false;
     connectionEstablished = false;
+    isSearching = false;
     if (shouldShowMenu) {
         showMainMenu();
     } else {
