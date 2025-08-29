@@ -595,6 +595,18 @@
     font-size: 1.0em;
     color: #00fff7;
   }
+  /* Server status indicator */
+  #serverStatus {
+    position: fixed;
+    bottom: 10px;
+    left: 10px;
+    font-size: 12px;
+    color: #00ff00;
+    background: rgba(0, 0, 0, 0.5);
+    padding: 5px 10px;
+    border-radius: 5px;
+    z-index: 1000;
+  }
 </style>
 </head>
 <body>
@@ -702,9 +714,84 @@
     <div class="power-up-icon life" title="Health Boost">❤️</div>
   </div>
   <canvas id="gameCanvas"></canvas>
+  <div id="serverStatus">Server: Connecting...</div>
 </div>
 <script>
 (() => {
+  // SERVER KEEP-ALIVE MECHANISM
+  // This prevents the Render server from timing out
+  const serverStatusEl = document.getElementById('serverStatus');
+  const KEEP_ALIVE_INTERVAL = 14 * 60 * 1000; // 14 minutes (less than Render's 15-minute timeout)
+  let keepAliveTimer;
+  
+  function pingServer() {
+    const timestamp = new Date().toLocaleTimeString();
+    serverStatusEl.textContent = `Server: Pinging at ${timestamp}...`;
+    
+    // Try to ping the server with a fetch request
+    fetch('/ping', { 
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      cache: 'no-cache'
+    })
+    .then(response => {
+      if (response.ok) {
+        serverStatusEl.textContent = `Server: Online (Last ping: ${timestamp})`;
+        serverStatusEl.style.color = '#00ff00';
+      } else {
+        throw new Error('Server responded with error');
+      }
+    })
+    .catch(error => {
+      // If the ping endpoint doesn't exist, try the root endpoint
+      fetch('/', { 
+        method: 'GET',
+        cache: 'no-cache'
+      })
+      .then(response => {
+        if (response.ok) {
+          serverStatusEl.textContent = `Server: Online (Last ping: ${timestamp})`;
+          serverStatusEl.style.color = '#00ff00';
+        } else {
+          throw new Error('Server responded with error');
+        }
+      })
+      .catch(error => {
+        serverStatusEl.textContent = `Server: Offline - ${error.message}`;
+        serverStatusEl.style.color = '#ff0000';
+        console.error('Server ping failed:', error);
+      });
+    });
+  }
+  
+  // Start keep-alive pings
+  function startKeepAlive() {
+    // Initial ping
+    pingServer();
+    
+    // Set up regular pings
+    keepAliveTimer = setInterval(pingServer, KEEP_ALIVE_INTERVAL);
+  }
+  
+  // Stop keep-alive pings
+  function stopKeepAlive() {
+    if (keepAliveTimer) {
+      clearInterval(keepAliveTimer);
+      keepAliveTimer = null;
+    }
+  }
+  
+  // Start the keep-alive mechanism when the page loads
+  startKeepAlive();
+  
+  // Clean up when the page unloads
+  window.addEventListener('beforeunload', () => {
+    stopKeepAlive();
+  });
+  
+  // GAME CODE
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
   function resize(){
