@@ -629,6 +629,14 @@
     text-shadow: 0 0 10px #00fff7;
     margin-bottom: 20px;
   }
+  @keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+  }
+  #difficultyIndicator {
+    transition: all 0.3s ease;
+  }
 </style>
 </head>
 <body>
@@ -731,8 +739,8 @@
     <button id="cancelMultiplayerBtn">Cancel</button>
   </div>
   <div id="winMenu">
-    <h2>Well Done, You Won!</h2>
-    <p>Your opponent crashed!</p>
+    <h2>Victory!</h2>
+    <p>Your opponent crashed! You win!</p>
     <button id="winBackBtn">Back to Menu</button>
   </div>
   <div id="flashOverlay"></div>
@@ -744,9 +752,7 @@
   </div>
   <canvas id="gameCanvas"></canvas>
 </div>
-
 <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
-
 <script>
 (() => {
   // GAME CODE
@@ -839,6 +845,8 @@
   let isHost = false;
   let conn = null; // PeerJS data connection
   let multiplayerGameStarted = false;
+  let lastMultiplayerDifficultyIncrease = 0;
+  const multiplayerDifficultyInterval = 10000; // 10 seconds
   
   let lives = 3;
   let maxLives = 3;
@@ -1501,9 +1509,6 @@
   // UPDATED MULTIPLAYER LOGIC USING PEERJS ONLY
   // ===================================================================
   
-  let multiplayerDifficultyLevel = 1;
-  let lastMultiplayerDifficultyIncrease = 0;
-
   function generateRoomCode() {
     const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     let result = '';
@@ -1623,6 +1628,8 @@
       if (multiplayerMode && !gameOver) {
         multiplayerStatus.textContent = "Opponent disconnected";
         connectionStatus.textContent = "Connection Status: Disconnected";
+        // If opponent disconnects, player wins by default
+        showWinMenu();
       }
     });
     
@@ -1630,6 +1637,10 @@
       console.error('Connection error:', err);
       multiplayerStatus.textContent = "Connection error: " + err.type;
       connectionStatus.textContent = "Connection Status: Error";
+      // On connection error, player wins by default
+      if (multiplayerMode && !gameOver) {
+        showWinMenu();
+      }
     });
   }
   
@@ -1701,11 +1712,18 @@
     if (gameOver) return;
     gameOver = true;
     cancelAnimationFrame(animationFrameId);
+    
+    // Update win menu content
+    winMenu.querySelector('h2').textContent = "Victory!";
+    winMenu.querySelector('p').textContent = "Your opponent crashed! You win!";
+    
     winMenu.style.display = 'block';
     canvas.style.display = 'none';
     pauseBtn.style.display = 'none';
     difficultyIndicator.style.display = 'none';
     multiplayerInfo.style.display = 'none';
+    
+    // Clean up multiplayer connection
     cancelMultiplayer(false);
   }
   
@@ -1742,25 +1760,25 @@
     powerUps = [];
     lastSpawn = 0;
     lastDifficultyIncrease = 0;
-    multiplayerDifficultyLevel = 1; // Reset multiplayer difficulty
-    lastMultiplayerDifficultyIncrease = 0; // Reset multiplayer difficulty timer
     maxLives = 3;
     powerUpIndicatorContainer.style.display = 'none';
     multiplayerMode = false; // Default to single player
     if (difficulty === 'multiplayer') {
       multiplayerMode = true; // Set multiplayer mode
-      // Multiplayer now uses new progressive difficulty
-      spawnInterval = 2500;
-      obstacleSpeed = 2.5;
-      maxObstacles = 3;
-      lives = 1; // One life like hardcore
-      maxLives = 1;
-      powerUpSpawnInterval = Number.MAX_SAFE_INTEGER; // No power-ups
+      // Multiplayer now uses the new hardcore rules
+      spawnInterval = 1000;
+      obstacleSpeed = 5.0;
+      maxObstacles = 6;
+      lives = 3;
+      maxLives = 3;
+      powerUpSpawnInterval = 3000;
       difficultyIndicator.textContent = "MULTIPLAYER";
       difficultyIndicator.className = "multiplayer";
-      powerUpIndicatorContainer.style.display = 'none'; // No power-ups in multiplayer
+      powerUpIndicatorContainer.style.display = 'flex';
       info.style.display = 'none';
       multiplayerInfo.style.display = 'flex';
+      // Initialize multiplayer difficulty timer
+      lastMultiplayerDifficultyIncrease = Date.now();
     }
     else if (difficulty === 'hard') {
       spawnInterval = 1800;
@@ -1774,9 +1792,9 @@
     }
     else if (difficulty === 'hardcore') {
       // 50x harder settings
-      spawnInterval = 50;
-      obstacleSpeed = 125;
-      maxObstacles = 10;
+      spawnInterval = 900;
+      obstacleSpeed = 8.0;
+      maxObstacles = 8;
       lives = 1;
       maxLives = 1;
       powerUpSpawnInterval = Number.MAX_SAFE_INTEGER;
@@ -1806,21 +1824,48 @@
     updateHearts();
     updateInfo();
   }
+  function updateInfo(){
+    let elapsed = Math.floor((Date.now() - startTime - pauseDuration) / 1000);
+    if(elapsed < 0) elapsed = 0;
+    if (multiplayerMode) {
+      playerTimeEl.textContent = `Your Time: ${elapsed}s`;
+      sendPlayerState();
+    } else {
+      infoTime.textContent = `Time: ${elapsed}s`;
+      if (difficulty !== 'multiplayer' && elapsed > highScores[difficulty]) {
+          highScores[difficulty] = elapsed;
+          saveHighScores();
+      }
+      infoHighScore.textContent = `High Score: ${highScores[difficulty]}s`;
+    }
+    infoCoins.textContent = `Coins: ${coins}`;
+  }
+  function spawnObstacle(){
+    const x = Math.random() * (canvas.width - 60) + 30;
+    obstacles.push(new Obstacle(x, -50, obstacleSpeed));
+  }
   function update(){
     if(gameOver || gamePaused) return;
     const now = Date.now();
     
-    // NEW: Multiplayer difficulty scaling
-    if (multiplayerMode) {
-        if (now - lastMultiplayerDifficultyIncrease > 10000) { // Every 10 seconds
-            lastMultiplayerDifficultyIncrease = now;
-            multiplayerDifficultyLevel *= 2; // Doubling the difficulty.
-            obstacleSpeed = 2.5 * multiplayerDifficultyLevel;
-            maxObstacles = 3 * multiplayerDifficultyLevel;
-            spawnInterval = 2500 / multiplayerDifficultyLevel;
-        }
+    // Multiplayer difficulty scaling
+    if (multiplayerMode && !gameOver) {
+      if (now - lastMultiplayerDifficultyIncrease > multiplayerDifficultyInterval) {
+        lastMultiplayerDifficultyIncrease = now;
+        
+        // Double the difficulty every 10 seconds
+        obstacleSpeed *= 2;
+        maxObstacles = Math.min(maxObstacles * 2, 50); // Cap at 50 obstacles
+        spawnInterval = Math.max(10, spawnInterval / 2); // Halve spawn interval
+        
+        // Visual feedback for difficulty increase
+        difficultyIndicator.style.animation = 'none';
+        setTimeout(() => {
+          difficultyIndicator.style.animation = 'pulse 0.5s';
+        }, 10);
+      }
     }
-
+    
     if(now - lastCoinTime > 2000) {
       coins++;
       gameStats.totalCoinsCollected++;
@@ -1938,7 +1983,7 @@
     difficultyIndicator.style.display = 'none';
     const elapsed = Math.floor((Date.now()-startTime - pauseDuration)/1000);
     if (multiplayerMode) {
-        gameOverTitle.textContent = "You Lost!";
+        gameOverTitle.textContent = "Game Over!";
         finalScoreP.textContent = `You survived for ${elapsed}s.`;
         bestScoreP.style.display = 'none';
         restartBtn.style.display = 'none';
@@ -2149,7 +2194,6 @@
   });
   
   mpBackBtn.addEventListener('click', showDifficultyMenu);
-
   skinsBtn.addEventListener('click', () => {
     initSkinButtons();
     showSkinsMenu();
@@ -2190,6 +2234,7 @@
       switch(q.id) {
         case 'play_10_games':
         case 'play_25_games':
+        case 'play_50_games':
         case 'play_50_games':
           q.progress = gameStats.totalGamesPlayed;
           if (q.progress >= q.goal) questCompleted = true;
