@@ -6,22 +6,58 @@
 <title>Retro Boat Racer - Multiplayer Mode</title>
 <meta name="monetag" content="0980d5620a4500b3bb7d603b086bc835">
 <style>
+  /* MODIFICATION: Force a centered, portrait-mode layout */
   html, body {
     margin:0; padding:0; overflow:hidden;
-    background: #0a192f;
+    background: #000; /* Dark background for letterboxing */
+    height: 100%;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
     font-family: 'Arial Rounded MT Bold', 'Arial', sans-serif;
     user-select:none;
     color:#00fff7;
-    height: 100%;
   }
-  body, #mainContent {
-    height: 100%;
-    width: 100%;
+
+  /* MODIFICATION: Wrapper to enforce aspect ratio */
+  #game-wrapper {
+    position: relative;
     overflow: hidden;
+    background: #0a192f;
+    /* Force 9:16 Aspect Ratio */
+    width: 100vw;
+    height: calc(100vw * 16 / 9);
+    max-height: 100vh;
+    max-width: calc(100vh * 9 / 16);
   }
-  body::before {
+
+  /* MODIFICATION: Overlay for telling user to rotate device */
+  #rotate-device-overlay {
+      position: fixed; /* This covers the entire real screen */
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: #0a192f;
+      color: #00fff7;
+      display: none; /* Hidden by default */
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      z-index: 10000;
+      font-size: 22px;
+      padding: 20px;
+  }
+
+  #rotate-device-overlay::before {
+      content: '🔄';
+      font-size: 60px;
+      margin-bottom: 20px;
+      animation: spin 3s linear infinite;
+  }
+
+  #game-wrapper::before {
     content: "";
-    position: fixed;
+    position: absolute;
     top:0; left:0; right:0; bottom:0;
     background:
       radial-gradient(circle at 20% 30%, rgba(255,255,255,0.1) 1px, transparent 1px),
@@ -29,8 +65,45 @@
     background-size: 50px 50px;
     z-index: -1;
   }
+  
+  /* MODIFICATION: Changed position from fixed to absolute to stay within the wrapper */
+  #info, #multiplayerInfo, #difficultyIndicator, #questNotification, #purchaseEffect, #flashOverlay, #pauseBtn, .power-up-indicator, #adBanner {
+    position: absolute;
+    z-index: 100;
+  }
+
+  /* MODIFICATION: All menus are now absolute position */
+  #menu, #skinsMenu, #restartMenu, #pauseMenu, #difficultyMenu, #questsMenu, #shopMenu, #multiplayerMenu, #waitingMenu, #winMenu, #multiplayerModeMenu {
+    position: absolute;
+    top:50%; left:50%;
+    transform: translate(-50%, -50%);
+    background: rgba(20,20,40,0.95);
+    border-radius: 15px;
+    padding: 30px 40px;
+    text-align: center;
+    box-shadow: 0 0 30px #00fff7;
+    color: #00fff7;
+    display: none;
+    min-width: 280px;
+    user-select:none;
+    z-index: 200;
+  }
+
+  #adBanner {
+    left: 0;
+    right: 0;
+    top: 0;
+    width: 100%;
+    height: 60px;
+    background: #191919;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 500;
+    box-shadow: 0 2px 16px #000a;
+  }
+
   #info {
-    position: fixed;
     top: 70px;
     left: 10px;
     right: 10px;
@@ -42,8 +115,8 @@
     font-size: 20px;
     text-shadow: 0 0 8px #00fff7;
     pointer-events: none;
-    z-index: 100;
   }
+
   #hearts {
     flex: 0 0 140px;
     display: flex;
@@ -87,21 +160,7 @@
       box-shadow: none;
       transform: none;
   }
-  #menu, #skinsMenu, #restartMenu, #pauseMenu, #difficultyMenu, #questsMenu, #shopMenu, #multiplayerMenu, #waitingMenu, #winMenu {
-    position: fixed;
-    top:50%; left:50%;
-    transform: translate(-50%, -50%);
-    background: rgba(20,20,40,0.95);
-    border-radius: 15px;
-    padding: 30px 40px;
-    text-align: center;
-    box-shadow: 0 0 30px #00fff7;
-    color: #00fff7;
-    display: none;
-    min-width: 280px;
-    user-select:none;
-    z-index: 200;
-  }
+
   #difficultyMenu h1, #questsMenu h2, #shopMenu h2, #multiplayerMenu h2, #waitingMenu h2, #winMenu h2 {
     margin-top: 0;
     font-size: 2.5em;
@@ -152,22 +211,13 @@
   #skinsMenu button.skin-btn.selected {
     box-shadow: 0 0 15px 3px #00fff7;
   }
-  #questsMenu {
+  #questsMenu, #shopMenu {
     min-width: 350px;
-    max-width: 450px;
+    max-width: 90%;
     max-height: 80vh;
     padding: 30px 32px;
     overflow: hidden;
-    display: flex;
-    flex-direction: column;
-  }
-  #shopMenu {
-    min-width: 350px;
-    max-width: 450px;
-    max-height: 80vh;
-    padding: 30px 32px;
-    overflow: hidden;
-    display: flex;
+    display: none; /* starts hidden */
     flex-direction: column;
   }
   #questList, #shopItems, #difficultyOptionsContainer {
@@ -212,13 +262,11 @@
     margin-bottom: 8px;
     color: #00fff7;
   }
-  .quest-progress {
+  .quest-progress, .quest-reward {
     font-size: 0.9em;
     color: #aaf;
-    margin-bottom: 5px;
   }
   .quest-reward {
-    font-size: 0.85em;
     color: #ffa500;
     font-style: italic;
   }
@@ -232,38 +280,23 @@
     background: rgba(0,100,150,0.3);
     font-size: 1.0em;
     box-shadow: 0 0 8px #0ff5;
-    position: relative;
-    overflow: hidden;
   }
-  .item-details {
-    text-align: left;
-    flex-grow: 1;
-  }
-  .item-title {
-    font-weight: bold;
-    font-size: 1.1em;
-    margin-bottom: 5px;
-  }
-  .item-description {
-    font-size: 0.9em;
-    color: #aaf;
-  }
-  .item-price {
-    display: flex;
-    align-items: center;
-    font-weight: bold;
-    color: #ffd700;
-  }
-  .item-price button {
-    margin-left: 10px;
-  }
+  .item-details { text-align: left; flex-grow: 1; }
+  .item-title { font-weight: bold; font-size: 1.1em; margin-bottom: 5px; }
+  .item-description { font-size: 0.9em; color: #aaf; }
+  .item-price { display: flex; align-items: center; font-weight: bold; color: #ffd700; }
+  .item-price button { margin-left: 10px; }
   canvas {
-    display:block; margin:0 auto;
+    position: absolute;
+    top: 0;
+    left: 0;
+    display:block;
     background: transparent;
+    width: 100%;
+    height: 100%;
   }
   #flashOverlay {
-    position: fixed;
-    top:0; left:0; width: 100vw; height: 100vh;
+    top:0; left:0; width: 100%; height: 100%;
     pointer-events:none;
     background: rgba(255,0,0,0.4);
     display: none;
@@ -271,7 +304,6 @@
     z-index: 1000;
   }
   #pauseBtn {
-    position: fixed;
     bottom: 20px;
     right: 20px;
     width: 60px;
@@ -283,7 +315,7 @@
     font-size: 24px;
     cursor: pointer;
     box-shadow: 0 0 10px #4AA1B0;
-    z-index: 100;
+    z-index: 101;
     display: none;
   }
   #pauseBtn:hover {
@@ -291,12 +323,12 @@
     box-shadow: 0 0 14px #73c2e9;
   }
   .power-up-indicator {
-    position: fixed;
     bottom: 20px;
     left: 20px;
     display: flex;
     flex-direction: row;
     gap: 10px;
+    z-index: 101;
   }
   .power-up-icon {
     width: 40px;
@@ -318,38 +350,22 @@
   .power-up-icon.slow { background: rgba(255, 100, 0, 0.7); }
   .power-up-icon.life { background: rgba(0, 255, 100, 0.7); }
   #difficultyIndicator {
-    position: fixed;
     top: 130px;
     right: 20px;
-    transform: none;
     padding: 5px 15px;
     border-radius: 20px;
     font-weight: bold;
     font-size: 14px;
     background: rgba(0, 0, 0, 0.5);
     box-shadow: 0 0 8px currentColor;
-    z-index: 100;
     display: none;
+    transition: all 0.3s ease;
   }
   #difficultyIndicator.easy { color: #7cff7c; }
   #difficultyIndicator.hard { color: #ff6b6b; }
   #difficultyIndicator.hardcore { color: #ff5722; }
   #difficultyIndicator.multiplayer { color: #9c27b0; }
-  #adBanner {
-    position: fixed;
-    left: 0;
-    right: 0;
-    top: 0;
-    height: 60px;
-    background: #191919;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 5000;
-    box-shadow: 0 2px 16px #000a;
-  }
   #questNotification {
-    position: fixed;
     top: -100px;
     left: 50%;
     transform: translateX(-50%);
@@ -366,25 +382,7 @@
     min-width: 300px;
     border: 2px solid #00fff7;
   }
-  #questNotification.show {
-    top: 20px;
-  }
-  #questNotification::before {
-    content: "";
-    position: absolute;
-    top: -2px;
-    left: -2px;
-    right: -2px;
-    bottom: -2px;
-    background: linear-gradient(45deg, #00fff7, #73c2e9, #4AA1B0, #00fff7);
-    border-radius: 10px;
-    z-index: -1;
-    animation: neonBorder 2s linear infinite;
-  }
-  @keyframes neonBorder {
-    0% { filter: hue-rotate(0deg); }
-    100% { filter: hue-rotate(360deg); }
-  }
+  #questNotification.show { top: 20px; }
   #shopMenu .coins-display {
     margin-bottom: 20px;
     font-size: 1.5em;
@@ -393,9 +391,8 @@
     text-shadow: 0 0 10px #ffea00;
   }
   #purchaseEffect {
-    position: fixed;
     top: 0; left: 0;
-    width: 100vw; height: 100vh;
+    width: 100%; height: 100%;
     background: radial-gradient(circle at center, rgba(0, 255, 247, 0.8) 0%, rgba(0, 255, 247, 0) 70%);
     pointer-events: none;
     opacity: 0;
@@ -403,28 +400,8 @@
     transition: all 0.4s ease-out;
     z-index: 5000;
   }
-  #purchaseEffect.active {
-    opacity: 1;
-    transform: scale(1.5);
-  }
-  #purchaseEffect::before {
-    content: '';
-    position: absolute;
-    top: 50%; left: 50%;
-    width: 150vw; height: 150vh;
-    background: radial-gradient(circle at center, #00fff7 0%, #00fff700 80%);
-    animation: pulseEffect 0.8s ease-in-out forwards;
-    transform: translate(-50%, -50%) scale(0);
-    opacity: 0;
-    will-change: transform, opacity;
-  }
-  @keyframes pulseEffect {
-    0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
-    50% { transform: translate(-50%, -50%) scale(1); opacity: 0.5; }
-    100% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; }
-  }
+  #purchaseEffect.active { opacity: 1; transform: scale(1.5); }
   #multiplayerInfo {
-    position: fixed;
     top: 70px;
     left: 10px;
     right: 10px;
@@ -436,219 +413,41 @@
     font-size: 20px;
     text-shadow: 0 0 8px #00fff7;
     pointer-events: none;
-    z-index: 100;
   }
-  #playerTime {
-    color: #00ff00;
-  }
-  #opponentTime {
-    color: #ff6b6b;
-  }
-  #waitingMenu h2 {
-    color: #9c27b0;
-  }
-  #winMenu h2 {
-    color: #00ff00;
-    font-size: 3em;
-    margin-bottom: 20px;
-  }
-  #winMenu p {
-    font-size: 1.5em;
-    margin-bottom: 30px;
-  }
+  #playerTime { color: #00ff00; }
+  #opponentTime { color: #ff6b6b; }
+  #winMenu h2, #waitingMenu h2, #difficultyMenu h1, #multiplayerModeMenu h2 { color: #9c27b0; text-shadow: 0 0 10px #9c27b0; }
+  #winMenu h2 { color: #00ff00; text-shadow: 0 0 10px #00ff00; font-size: 3em; margin-bottom: 20px; }
+  #winMenu p { font-size: 1.5em; margin-bottom: 30px; }
   .loading-spinner {
-    width: 40px;
-    height: 40px;
-    margin: 20px auto;
-    border: 4px solid #00fff7;
-    border-radius: 50%;
+    width: 40px; height: 40px; margin: 20px auto;
+    border: 4px solid #00fff7; border-radius: 50%;
     border-top: 4px solid transparent;
     animation: spin 1s linear infinite;
   }
+  #roomCodeInput, #peerIdInput {
+    width: 90%; padding: 10px; margin: 10px 0;
+    border-radius: 5px; border: 1px solid #00fff7;
+    background: rgba(0, 0, 0, 0.5); color: #00fff7;
+    font-family: monospace; text-align: center;
+  }
+  #roomCodeInput { text-transform: uppercase; }
   @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
-  }
-  #waitingMessage {
-    margin: 20px 0;
-    font-size: 1.2em;
-    color: #00fff7;
-  }
-  #multiplayerStatus {
-    margin: 15px 0;
-    padding: 10px;
-    background: rgba(0, 0, 0, 0.3);
-    border-radius: 8px;
-    font-family: monospace;
-    font-size: 1.1em;
-    color: #00fff7;
-  }
-  #playerList {
-    margin: 15px 0;
-    padding: 10px;
-    background: rgba(0, 0, 0, 0.3);
-    border-radius: 8px;
-    font-family: monospace;
-    font-size: 1.1em;
-    color: #00fff7;
-    max-height: 150px;
-    overflow-y: auto;
-  }
-  .player-item {
-    padding: 5px;
-    margin: 5px 0;
-    background: rgba(0, 100, 150, 0.3);
-    border-radius: 5px;
-    display: flex;
-    justify-content: space-between;
-  }
-  .player-name {
-    font-weight: bold;
-  }
-  .player-status {
-    font-size: 0.8em;
-    color: #7cff7c;
-  }
-  .player-status.waiting {
-    color: #ffa500;
-  }
-  .public-matchmaking {
-    margin: 20px 0;
-    text-align: center;
-  }
-  .matchmaking-status {
-    font-size: 1.1em;
-    margin: 15px 0;
-    color: #00fff7;
-  }
-  .players-waiting {
-    margin: 15px 0;
-    font-size: 1.0em;
-    color: #ffa500;
-  }
-  .connection-options {
-    margin: 20px 0;
-    display: none;
-  }
-  .connection-option {
-    margin: 15px 0;
-    padding: 15px;
-    border-radius: 10px;
-    background: rgba(0, 100, 150, 0.3);
-    cursor: pointer;
-    transition: all 0.3s ease;
-  }
-  .connection-option:hover {
-    background: rgba(0, 150, 200, 0.4);
-    transform: scale(1.02);
-  }
-  .connection-option.selected {
-    background: rgba(0, 200, 255, 0.4);
-    box-shadow: 0 0 15px #00fff7;
-    transform: scale(1.02);
-  }
-  .connection-title {
-    font-size: 1.2em;
-    font-weight: bold;
-    margin-bottom: 10px;
-    color: #00fff7;
-  }
-  .connection-description {
-    font-size: 0.9em;
-    color: #aaf;
-  }
-  #peerIdInput {
-    width: 100%;
-    padding: 10px;
-    margin: 10px 0;
-    border-radius: 5px;
-    border: 1px solid #00fff7;
-    background: rgba(0, 0, 0, 0.5);
-    color: #00fff7;
-    font-family: monospace;
-    text-align: center;
-  }
-  #yourPeerId {
-    margin: 10px 0;
-    padding: 8px;
-    background: rgba(0, 0, 0, 0.3);
-    border-radius: 5px;
-    font-family: monospace;
-    font-size: 0.9em;
-    color: #7cff7c;
-    word-break: break-all;
-  }
-  .matchmaking-container {
-    margin: 20px 0;
-    text-align: center;
-  }
-  .status-message {
-    margin: 15px 0;
-    font-size: 1.1em;
-    color: #00fff7;
-  }
-  .connection-status {
-    margin: 15px 0;
-    padding: 10px;
-    background: rgba(0, 0, 0, 0.3);
-    border-radius: 8px;
-    font-family: monospace;
-    font-size: 1.0em;
-    color: #00fff7;
-  }
-  #multiplayerModeMenu {
-    position: fixed;
-    top:50%; left:50%;
-    transform: translate(-50%, -50%);
-    background: rgba(20,20,40,0.95);
-    border-radius: 15px;
-    padding: 30px 40px;
-    text-align: center;
-    box-shadow: 0 0 30px #00fff7;
-    color: #00fff7;
-    display: none;
-    min-width: 280px;
-    user-select:none;
-    z-index: 200;
-  }
-  #roomCodeInput {
-    width: 100%;
-    padding: 10px;
-    margin: 10px 0;
-    border-radius: 5px;
-    border: 1px solid #00fff7;
-    background: rgba(0, 0, 0, 0.5);
-    color: #00fff7;
-    font-family: monospace;
-    text-align: center;
-    text-transform: uppercase;
-  }
-  #multiplayerModeMenu h2 {
-    margin-top: 0;
-    font-size: 2em;
-    text-shadow: 0 0 10px #00fff7;
-    margin-bottom: 20px;
   }
   @keyframes pulse {
     0% { transform: scale(1); }
     50% { transform: scale(1.2); }
     100% { transform: scale(1); }
   }
-  #difficultyIndicator {
-    transition: all 0.3s ease;
-  }
 </style>
 </head>
 <body>
-<div id="mainContent">
+
+<div id="game-wrapper">
   <div id="adBanner">
-    <ins class="adsbygoogle"
-       style="display:block"
-       data-ad-client="ca-pub-4568215894032054"
-       data-ad-slot="1234567890"
-       data-ad-format="auto"
-       data-full-width-responsive="true"></ins>
-  </div>
+      </div>
   <div id="info">
     <div id="hearts"></div>
     <div id="time">Time: 0s</div>
@@ -727,15 +526,11 @@
   </div>
   <div id="waitingMenu">
     <h2>Multiplayer Lobby</h2>
-    <div id="multiplayerStatus">Connecting to server...</div>
-    <div id="yourPeerId" style="display: none;"></div>
-    <input type="text" id="roomCodeInput" placeholder="Enter 6-letter room code" style="display: none;">
+    <div id="multiplayerStatus">Connecting...</div>
+    <div id="yourPeerId" style="display: none; font-size: 14px; word-break: break-all;"></div>
+    <input type="text" id="roomCodeInput" placeholder="ENTER 6-LETTER ROOM CODE" style="display: none;">
     <button id="connectBtn" style="display: none;">Connect</button>
-    <div class="matchmaking-container">
-      <div class="status-message" id="matchmakingStatus">Looking for players...</div>
-      <div class="connection-status" id="connectionStatus">Connection Status: Initializing</div>
-      <div class="loading-spinner" id="loadingSpinner"></div>
-    </div>
+    <div class="loading-spinner" id="loadingSpinner"></div>
     <button id="cancelMultiplayerBtn">Cancel</button>
   </div>
   <div id="winMenu">
@@ -752,27 +547,22 @@
   </div>
   <canvas id="gameCanvas"></canvas>
 </div>
+
+<div id="rotate-device-overlay">
+  Please rotate your device to portrait mode to play.
+</div>
+
 <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
 <script>
 (() => {
   // GAME CODE
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
-  function resize(){
-    const adBanner = document.getElementById('adBanner');
-    const info = document.getElementById('info');
-    const multiplayerInfo = document.getElementById('multiplayerInfo');
-    const difficultyIndicator = document.getElementById('difficultyIndicator');
-    const adHeight = adBanner ? adBanner.offsetHeight : 0;
-    const infoHeight = info ? info.offsetHeight : 0;
-    const multiplayerInfoHeight = multiplayerInfo ? multiplayerInfo.offsetHeight : 0;
-    const indicatorHeight = difficultyIndicator ? difficultyIndicator.offsetHeight : 0;
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight - adHeight - infoHeight - multiplayerInfoHeight - indicatorHeight - 30;
-    canvas.style.marginTop = `${adHeight + infoHeight + multiplayerInfoHeight + indicatorHeight + 30}px`;
-  }
-  resize();
-  window.addEventListener('resize', resize);
+  
+  // MODIFICATION: Elements for portrait mode enforcement
+  const gameWrapper = document.getElementById('game-wrapper');
+  const rotateOverlay = document.getElementById('rotate-device-overlay');
+
   const infoTime = document.getElementById('time');
   const infoHighScore = document.getElementById('highScore');
   const infoCoins = document.getElementById('coins');
@@ -802,7 +592,6 @@
   const difficultyIndicator = document.getElementById('difficultyIndicator');
   const questNotification = document.getElementById('questNotification');
   const purchaseEffect = document.getElementById('purchaseEffect');
-  // Multiplayer elements
   const multiplayerInfo = document.getElementById('multiplayerInfo');
   const playerTimeEl = document.getElementById('playerTime');
   const opponentTimeEl = document.getElementById('opponentTime');
@@ -817,42 +606,95 @@
   const cancelMultiplayerBtn = document.getElementById('cancelMultiplayerBtn');
   const winMenu = document.getElementById('winMenu');
   const winBackBtn = document.getElementById('winBackBtn');
-  const waitingMessage = document.getElementById('waitingMessage');
   const multiplayerStatus = document.getElementById('multiplayerStatus');
-  const playerList = document.getElementById('playerList');
-  const matchmakingStatus = document.getElementById('matchmakingStatus');
-  const playersWaiting = document.getElementById('playersWaiting');
-  const loadingSpinner = document.getElementById('loadingSpinner');
-  const connectionStatus = document.getElementById('connectionStatus');
-  
-  // QUEST System DOM
   const questsBtn = document.getElementById('questsBtn');
   const questsMenu = document.getElementById('questsMenu');
   const questsBackBtn = document.getElementById('questsBackBtn');
   const questList = document.getElementById('questList');
-  // Shop DOM
   const shopBtn = document.getElementById('shopBtn');
   const shopMenu = document.getElementById('shopMenu');
   const shopItemsDiv = document.getElementById('shopItems');
   const shopBackBtn = document.getElementById('shopBackBtn');
   const shopCoinsDisplay = document.getElementById('shopCoins');
-  
+
+  // MODIFICATION: Array of all menus for easy hiding
+  const allMenus = [menu, difficultyMenu, multiplayerModeMenu, skinsMenu, questsMenu, shopMenu, restartMenu, pauseMenu, waitingMenu, winMenu];
+
   // Multiplayer variables (PeerJS only)
   let peer = null;
   let multiplayerMode = false;
   let opponentTime = 0;
-  let connectionEstablished = false;
-  let isHost = false;
-  let conn = null; // PeerJS data connection
+  let conn = null;
   let multiplayerGameStarted = false;
-  let lastMultiplayerDifficultyIncrease = 0;
-  const multiplayerDifficultyInterval = 10000; // 10 seconds
   
+  // MODIFICATION: Added scaling variables
+  let scaleFactor = 1;
+  const referenceWidth = 480; // Baseline mobile width for scaling
+  
+  // MODIFICATION: Base values for scaling. Adjusted from 60/90 to 80/120 to make the boat larger initially.
+  const base = {
+      boatW: 80, // INCREASED from 60
+      boatH: 120, // INCREASED from 90
+      boatSpeed: 8, // INCREASED from 6 to match new size
+      obstacleSizeMin: 20,
+      obstacleSizeRange: 30,
+      obstacleBaseSpeed: { easy: 2.5, hard: 4.0, hardcore: 8.0, multiplayer: 5.0 },
+      powerUpSize: 30,
+      powerUpSpeed: 2,
+      fontBaseSize: 20
+  };
+
+  const boat = {
+    w: base.boatW, h: base.boatH,
+    x: 0, y: 0,
+    speed: base.boatSpeed, baseSpeed: base.boatSpeed,
+    color: '#E63946', type: 'classic'
+  };
+
+  // MODIFICATION: Function to check orientation and show/hide an overlay
+  function checkOrientation() {
+      if (window.innerWidth > window.innerHeight && !/Mobi|Android/i.test(navigator.userAgent)) {
+          // It's a desktop in landscape, which is fine
+          gameWrapper.style.display = 'block';
+          rotateOverlay.style.display = 'none';
+          resize();
+          return;
+      }
+
+      if (window.innerWidth > window.innerHeight) {
+          gameWrapper.style.display = 'none';
+          rotateOverlay.style.display = 'flex';
+      } else {
+          gameWrapper.style.display = 'block';
+          rotateOverlay.style.display = 'none';
+          resize();
+      }
+  }
+
+  // MODIFICATION: Resize function now scales game elements
+  function resize(){
+    if (gameWrapper.style.display === 'none') return;
+    canvas.width = gameWrapper.clientWidth;
+    canvas.height = gameWrapper.clientHeight;
+    
+    scaleFactor = canvas.width / referenceWidth;
+    
+    boat.w = base.boatW * scaleFactor;
+    boat.h = base.boatH * scaleFactor;
+    boat.baseSpeed = base.boatSpeed * scaleFactor;
+    // Update current speed if not in a game
+    if (gameOver || menu.style.display === 'block') {
+      boat.speed = boat.baseSpeed;
+    }
+  }
+  
+  window.addEventListener('resize', checkOrientation);
+  window.addEventListener('load', checkOrientation);
+
   let lives = 3;
   let maxLives = 3;
-  let distance = 0;
   let startTime = 0;
-  let gameOver = false;
+  let gameOver = true; // Start with game over
   let obstacles = [];
   let powerUps = [];
   let lastSpawn = 0;
@@ -869,11 +711,7 @@
   let flashing = false;
   let flashTime = 0;
   let flashDuration = 300;
-  let highScores = {
-    easy: 0,
-    hard: 0,
-    hardcore: 0
-  };
+  let highScores = { easy: 0, hard: 0, hardcore: 0 };
   let gamePaused = false;
   let pauseTime = 0;
   let pauseDuration = 0;
@@ -884,1456 +722,373 @@
   let coins = 0;
   let lastCoinTime = 0;
   let hasStartingShield = false;
-  let gameStats = {
-    totalPowerUps: 0,
-    totalGamesPlayed: 0,
-    totalObstaclesAvoided: 0,
-    perfectRuns: 0,
-    longestSurvival: 0,
-    hardModeWins: 0,
-    shieldsUsed: 0,
-    totalCoinsCollected: 0,
-    totalTimeSurvived: 0
-  };
-  if(localStorage.getItem("boatRacerHighScores")) {
-    highScores = {...highScores, ...JSON.parse(localStorage.getItem("boatRacerHighScores"))};
-  }
-  if(localStorage.getItem("boatRacerStats")){
-    gameStats = {...gameStats, ...JSON.parse(localStorage.getItem("boatRacerStats"))};
-  }
-  if(localStorage.getItem("boatRacerCoins")){
-    coins = parseInt(localStorage.getItem("boatRacerCoins")) || 0;
-  }
-  function saveHighScores() {
-    localStorage.setItem("boatRacerHighScores", JSON.stringify(highScores));
-  }
-  function saveStats(){
-    localStorage.setItem("boatRacerStats", JSON.stringify(gameStats));
-  }
+  let gameStats = { totalPowerUps: 0, totalGamesPlayed: 0, totalObstaclesAvoided: 0, perfectRuns: 0, longestSurvival: 0, hardModeWins: 0, shieldsUsed: 0, totalCoinsCollected: 0, totalTimeSurvived: 0 };
+  
+  if(localStorage.getItem("boatRacerHighScores")) highScores = {...highScores, ...JSON.parse(localStorage.getItem("boatRacerHighScores"))};
+  if(localStorage.getItem("boatRacerStats")) gameStats = {...gameStats, ...JSON.parse(localStorage.getItem("boatRacerStats"))};
+  if(localStorage.getItem("boatRacerCoins")) coins = parseInt(localStorage.getItem("boatRacerCoins")) || 0;
+  
+  function saveHighScores() { localStorage.setItem("boatRacerHighScores", JSON.stringify(highScores)); }
+  function saveStats(){ localStorage.setItem("boatRacerStats", JSON.stringify(gameStats)); }
   function saveCoins(){
     localStorage.setItem("boatRacerCoins", coins);
     infoCoins.textContent = `Coins: ${coins}`;
     shopCoinsDisplay.textContent = coins;
   }
-  let boatSkins = [
-    {color: '#E63946', name: 'Classic Red', type: 'classic'},
-    {color: '#457B9D', name: 'Ocean Blue', type: 'classic'},
-  ];
+  let boatSkins = [{color: '#E63946', name: 'Classic Red', type: 'classic'},{color: '#457B9D', name: 'Ocean Blue', type: 'classic'}];
   let currentSkinIndex = 0;
-  const shopItems = [
-    { id: 'skin_SunsetOrange', name: 'Sunset Orange', type: 'skin', cost: 1000, skinData: {color: '#F4A261', name: 'Sunset Orange', type: 'classic'} },
-    { id: 'skin_RoyalPurple', name: 'Royal Purple', type: 'skin', cost: 1250, skinData: {color: '#6A4C93', name: 'Royal Purple', type: 'classic'} },
-    { id: 'skin_VictoryRed', name: 'Victory Red', type: 'skin', cost: 1500, skinData: {color: '#ff6b6b', name: 'Victory Red', type: 'speedboat'} },
-    { id: 'skin_SurvivorCyan', name: 'Survivor Cyan', type: 'skin', cost: 2000, skinData: {color: '#4ecdc4', name: 'Survivor Cyan', type: 'yacht'} },
-    { id: 'skin_CamoWarrior', name: 'Camo Warrior', type: 'skin', cost: 2500, skinData: {color: '#7bbc97', name: 'Camo Warrior', type: 'military'} },
-    { id: 'skin_NeonStorm', name: 'Neon Storm', type: 'skin', cost: 3000, skinData: {color: '#39FF14', name: 'Neon Storm', type: 'hovercraft'} },
-    { id: 'skin_DodgeMaster', name: 'Dodge Master', type: 'skin', cost: 3500, skinData: {color: '#ffa726', name: 'Dodge Master', type: 'jet'} },
-    { id: 'skin_VeteranPurple', name: 'Veteran Purple', type: 'skin', cost: 4000, skinData: {color: '#ab47bc', name: 'Veteran Purple', type: 'cruiser'} },
-    { id: 'skin_ElitePink', name: 'Elite Pink', type: 'skin', cost: 4500, skinData: {color: '#e91e63', name: 'Elite Pink', type: 'submarine'} },
-    { id: 'skin_GoldenPerfection', name: 'Golden Perfection', type: 'skin', cost: 5000, skinData: {color: '#ffeb3b', name: 'Golden Perfection', type: 'golden'} },
-    { id: 'skin_HardcoreOrange', name: 'Hardcore Orange', type: 'skin', cost: 5500, skinData: {color: '#ff5722', name: 'Hardcore Orange', type: 'racer'} },
-    { id: 'skin_ShieldMaster', name: 'Shield Master', type: 'skin', cost: 6000, skinData: {color: '#00bcd4', name: 'Shield Master', type: 'armored'} },
-    { id: 'skin_TimeLord', name: 'Time Lord', type: 'skin', cost: 6500, skinData: {color: '#9c27b0', name: 'Time Lord', type: 'timeship'} },
-    { id: 'skin_ShadowPhantom', name: 'Shadow Phantom', type: 'skin', cost: 7000, skinData: {color: '#212121', name: 'Shadow Phantom', type: 'stealth'} },
-    { id: 'skin_PowerCollector', name: 'Power Collector', type: 'skin', cost: 7500, skinData: {color: '#00e676', name: 'Power Collector', type: 'energy'} },
-    { id: 'skin_EvasionExpert', name: 'Evasion Expert', type: 'skin', cost: 8000, skinData: {color: '#1de9b6', name: 'Evasion Expert', type: 'phantom'} },
-    { id: 'skin_UltimateSurvivor', name: 'Ultimate Survivor', type: 'skin', cost: 8500, skinData: {color: '#f44336', name: 'Ultimate Survivor', type: 'ultimate'} },
-    { id: 'skin_MasterSailor', name: 'Master Sailor', type: 'skin', cost: 9000, skinData: {color: '#ff9800', name: 'Master Sailor', type: 'flagship'} },
-    { id: 'skin_RainbowLegend', name: 'Rainbow Legend', type: 'skin', cost: 10000, skinData: {color: '#ffffff', name: 'Rainbow Legend', rainbow: true, boatType: 'legendary'} },
-    { id: 'skin_GoldPlated', name: 'Gold Plated', type: 'skin', cost: 12000, skinData: {color: '#ffd700', name: 'Gold Plated', type: 'golden'} },
-    { id: 'healthBoost', name: 'Health Boost', desc: 'Instantly restore one life.', cost: 500, type: 'health' },
-    { id: 'startShield', name: 'Starting Shield', desc: 'Start your next game with a shield.', cost: 1000, type: 'shield' },
-    { id: 'skin_Triangle', name: 'The Bermuda', desc: 'A strange triangular boat that defies logic.', cost: 1500, type: 'skin', skinData: { color: '#00ccff', name: 'The Bermuda', boatType: 'triangle' } },
-    { id: 'skin_Donut', name: 'The Doughnut', desc: 'Sail in a delicious, round boat.', cost: 1500, type: 'skin', skinData: { color: '#ffb366', name: 'The Doughnut', boatType: 'donut' } },
-    { id: 'skin_Star', name: 'Starship', desc: 'Navigate the waters in a shiny star.', cost: 2000, type: 'skin', skinData: { color: '#f7e735', name: 'Starship', boatType: 'star' } },
-    { id: 'skin_Crescent', name: 'Crescent Moon', desc: 'A serene boat shaped like a waxing crescent.', cost: 2000, type: 'skin', skinData: { color: '#c4c6ff', name: 'Crescent Moon', boatType: 'crescent' } }
-  ];
-  shopItems.filter(item => item.type === 'skin').forEach(item => {
-    item.skinData.unlocked = false;
-    boatSkins.push(item.skinData);
-  });
+  const shopItems = [{ id: 'skin_SunsetOrange', name: 'Sunset Orange', type: 'skin', cost: 1000, skinData: {color: '#F4A261', name: 'Sunset Orange', type: 'classic'} },{ id: 'skin_RoyalPurple', name: 'Royal Purple', type: 'skin', cost: 1250, skinData: {color: '#6A4C93', name: 'Royal Purple', type: 'classic'} },{ id: 'skin_VictoryRed', name: 'Victory Red', type: 'skin', cost: 1500, skinData: {color: '#ff6b6b', name: 'Victory Red', type: 'speedboat'} },{ id: 'skin_SurvivorCyan', name: 'Survivor Cyan', type: 'skin', cost: 2000, skinData: {color: '#4ecdc4', name: 'Survivor Cyan', type: 'yacht'} },{ id: 'skin_CamoWarrior', name: 'Camo Warrior', type: 'skin', cost: 2500, skinData: {color: '#7bbc97', name: 'Camo Warrior', type: 'military'} },{ id: 'skin_NeonStorm', name: 'Neon Storm', type: 'skin', cost: 3000, skinData: {color: '#39FF14', name: 'Neon Storm', type: 'hovercraft'} },{ id: 'skin_DodgeMaster', name: 'Dodge Master', type: 'skin', cost: 3500, skinData: {color: '#ffa726', name: 'Dodge Master', type: 'jet'} },{ id: 'skin_VeteranPurple', name: 'Veteran Purple', type: 'skin', cost: 4000, skinData: {color: '#ab47bc', name: 'Veteran Purple', type: 'cruiser'} },{ id: 'skin_ElitePink', name: 'Elite Pink', type: 'skin', cost: 4500, skinData: {color: '#e91e63', name: 'Elite Pink', type: 'submarine'} },{ id: 'skin_GoldenPerfection', name: 'Golden Perfection', type: 'skin', cost: 5000, skinData: {color: '#ffeb3b', name: 'Golden Perfection', type: 'golden'} },{ id: 'skin_HardcoreOrange', name: 'Hardcore Orange', type: 'skin', cost: 5500, skinData: {color: '#ff5722', name: 'Hardcore Orange', type: 'racer'} },{ id: 'skin_ShieldMaster', name: 'Shield Master', type: 'skin', cost: 6000, skinData: {color: '#00bcd4', name: 'Shield Master', type: 'armored'} },{ id: 'skin_TimeLord', name: 'Time Lord', type: 'skin', cost: 6500, skinData: {color: '#9c27b0', name: 'Time Lord', type: 'timeship'} },{ id: 'skin_ShadowPhantom', name: 'Shadow Phantom', type: 'skin', cost: 7000, skinData: {color: '#212121', name: 'Shadow Phantom', type: 'stealth'} },{ id: 'skin_PowerCollector', name: 'Power Collector', type: 'skin', cost: 7500, skinData: {color: '#00e676', name: 'Power Collector', type: 'energy'} },{ id: 'skin_EvasionExpert', name: 'Evasion Expert', type: 'skin', cost: 8000, skinData: {color: '#1de9b6', name: 'Evasion Expert', type: 'phantom'} },{ id: 'skin_UltimateSurvivor', name: 'Ultimate Survivor', type: 'skin', cost: 8500, skinData: {color: '#f44336', name: 'Ultimate Survivor', type: 'ultimate'} },{ id: 'skin_MasterSailor', name: 'Master Sailor', type: 'skin', cost: 9000, skinData: {color: '#ff9800', name: 'Master Sailor', type: 'flagship'} },{ id: 'skin_RainbowLegend', name: 'Rainbow Legend', type: 'skin', cost: 10000, skinData: {color: '#ffffff', name: 'Rainbow Legend', rainbow: true, boatType: 'legendary'} },{ id: 'skin_GoldPlated', name: 'Gold Plated', type: 'skin', cost: 12000, skinData: {color: '#ffd700', name: 'Gold Plated', type: 'golden'} },{ id: 'healthBoost', name: 'Health Boost', desc: 'Instantly restore one life.', cost: 500, type: 'health' },{ id: 'startShield', name: 'Starting Shield', desc: 'Start your next game with a shield.', cost: 1000, type: 'shield' },{ id: 'skin_Triangle', name: 'The Bermuda', desc: 'A strange triangular boat that defies logic.', cost: 1500, type: 'skin', skinData: { color: '#00ccff', name: 'The Bermuda', boatType: 'triangle' } },{ id: 'skin_Donut', name: 'The Doughnut', desc: 'Sail in a delicious, round boat.', cost: 1500, type: 'skin', skinData: { color: '#ffb366', name: 'The Doughnut', boatType: 'donut' } },{ id: 'skin_Star', name: 'Starship', desc: 'Navigate the waters in a shiny star.', cost: 2000, type: 'skin', skinData: { color: '#f7e735', name: 'Starship', boatType: 'star' } },{ id: 'skin_Crescent', name: 'Crescent Moon', desc: 'A serene boat shaped like a waxing crescent.', cost: 2000, type: 'skin', skinData: { color: '#c4c6ff', name: 'Crescent Moon', boatType: 'crescent' } }];
+  shopItems.filter(item => item.type === 'skin').forEach(item => { item.skinData.unlocked = false; boatSkins.push(item.skinData); });
   if(localStorage.getItem("boatRacerSkins")){
     let savedSkins = JSON.parse(localStorage.getItem("boatRacerSkins"));
-    savedSkins.forEach(savedSkin => {
-        const matchingSkin = boatSkins.find(s => s.name === savedSkin.name);
-        if (matchingSkin) {
-            matchingSkin.unlocked = savedSkin.unlocked;
-        }
-    });
+    savedSkins.forEach(savedSkin => { const matchingSkin = boatSkins.find(s => s.name === savedSkin.name); if (matchingSkin) matchingSkin.unlocked = savedSkin.unlocked; });
   }
-  const boat = {
-    w: 60,
-    h: 90,
-    x: 0,
-    y: 0,
-    speed: 6,
-    baseSpeed: 6,
-    color: boatSkins[0].color,
-    type: boatSkins[0].type
-  };
+
   function resetBoat(){
+    resize(); // Ensure boat is scaled correctly
     boat.x = canvas.width/2 - boat.w/2;
-    boat.y = canvas.height - boat.h - 100;
+    boat.y = canvas.height - boat.h - (100 * scaleFactor);
     boat.color = boatSkins[currentSkinIndex].color;
     boat.type = boatSkins[currentSkinIndex].type || 'classic';
     boat.speed = boat.baseSpeed;
   }
-  const quests = [
-    { id: 'survive_10s', description: "Survive for 10 seconds", progress: 0, goal: 10, reward: { type: 'coins', amount: 50 }, completed: false, category: 'rookie' },
-    { id: 'survive_30s', description: "Survive for 30 seconds", progress: 0, goal: 30, reward: { type: 'coins', amount: 150 }, completed: false, category: 'rookie' },
-    { id: 'dodge_20_obstacles', description: "Avoid 20 obstacles", progress: 0, goal: 20, reward: { type: 'coins', amount: 200 }, completed: false, category: 'rookie' },
-    { id: 'dodge_50_obstacles', description: "Avoid 50 obstacles", progress: 0, goal: 50, reward: { type: 'coins', amount: 400 }, completed: false, category: 'rookie' },
-    { id: 'collect_1_powerup', description: "Collect 1 power-up", progress: 0, goal: 1, reward: { type: 'coins', amount: 100 }, completed: false, category: 'rookie' },
-    { id: 'collect_5_powerups', description: "Collect 5 power-ups", progress: 0, goal: 5, reward: { type: 'coins', amount: 300 }, completed: false, category: 'rookie' },
-    { id: 'play_10_games', description: "Play 10 total games", progress: 0, goal: 10, reward: { type: 'coins', amount: 250 }, completed: false, category: 'rookie' },
-    { id: 'no_damage_30s', description: "Survive 30s without damage", progress: 0, goal: 30, reward: { type: 'coins', amount: 500 }, completed: false, category: 'rookie' },
-    { id: 'survive_60s', description: "Survive for 60 seconds", progress: 0, goal: 60, reward: { type: 'coins', amount: 800 }, completed: false, category: 'intermediate' },
-    { id: 'survive_120s', description: "Survive for 120 seconds", progress: 0, goal: 120, reward: { type: 'coins', amount: 1500 }, completed: false, category: 'intermediate' },
-    { id: 'dodge_100_obstacles', description: "Avoid 100 obstacles", progress: 0, goal: 100, reward: { type: 'coins', amount: 1000 }, completed: false, category: 'intermediate' },
-    { id: 'dodge_200_obstacles', description: "Avoid 200 obstacles", progress: 0, goal: 200, reward: { type: 'coins', amount: 2000 }, completed: false, category: 'intermediate' },
-    { id: 'collect_15_powerups', description: "Collect 15 power-ups", progress: 0, goal: 15, reward: { type: 'coins', amount: 1200 }, completed: false, category: 'intermediate' },
-    { id: 'no_damage_60s', description: "Survive 60s without damage", progress: 0, goal: 60, reward: { type: 'coins', amount: 1500 }, completed: false, category: 'intermediate' },
-    { id: 'play_25_games', description: "Play 25 total games", progress: 0, goal: 25, reward: { type: 'coins', amount: 1800 }, completed: false, category: 'intermediate' },
-    { id: 'hardmode_1_win', description: "Win 1 game on Hard Mode", progress: 0, goal: 1, reward: { type: 'coins', amount: 1500 }, completed: false, category: 'expert' },
-    { id: 'hardmode_3_wins', description: "Win 3 games on Hard Mode", progress: 0, goal: 3, reward: { type: 'coins', amount: 2500 }, completed: false, category: 'expert' },
-    { id: 'hardmode_5_wins', description: "Win 5 games on Hard Mode", progress: 0, goal: 5, reward: { type: 'coins', amount: 4000 }, completed: false, category: 'expert' },
-    { id: 'survive_300s', description: "Survive for 5 minutes", progress: 0, goal: 300, reward: { type: 'coins', amount: 3500 }, completed: false, category: 'mastery' },
-    { id: 'dodge_500_obstacles', description: "Avoid 500 obstacles", progress: 0, goal: 500, reward: { type: 'coins', amount: 5000 }, completed: false, category: 'mastery' },
-    { id: 'collect_50_powerups', description: "Collect 50 power-ups", progress: 0, goal: 50, reward: { type: 'coins', amount: 4500 }, completed: false, category: 'mastery' },
-    { id: 'no_damage_120s', description: "Survive 120s without damage", progress: 0, goal: 120, reward: { type: 'coins', amount: 5000 }, completed: false, category: 'mastery' },
-    { id: 'play_50_games', description: "Play 50 total games", progress: 0, goal: 50, reward: { type: 'coins', amount: 4000 }, completed: false, category: 'mastery' },
-    { id: 'shields_used_25', description: "Use 25 shields", progress: 0, goal: 25, reward: { type: 'coins', amount: 2500 }, completed: false, category: 'mastery' },
-    { id: 'hardmode_10_wins', description: "Win 10 games on Hard Mode", progress: 0, goal: 10, reward: { type: 'coins', amount: 7500 }, completed: false, category: 'legendary' },
-    { id: 'hardmode_25_wins', description: "Win 25 games on Hard Mode", progress: 0, goal: 25, reward: { type: 'coins', amount: 15000 }, completed: false, category: 'legendary' },
-    { id: 'survive_600s', description: "Survive for 10 minutes", progress: 0, goal: 600, reward: { type: 'coins', amount: 8000 }, completed: false, category: 'legendary' },
-    { id: 'collect_100_powerups', description: "Collect 100 power-ups", progress: 0, goal: 100, reward: { type: 'coins', amount: 10000 }, completed: false, category: 'legendary' },
-    { id: 'no_damage_180s', description: "Survive 180s without damage", progress: 0, goal: 180, reward: { type: 'coins', amount: 12000 }, completed: false, category: 'legendary' },
-    { id: 'collect_1000_coins', description: "Collect 1,000 total coins", progress: 0, goal: 1000, reward: { type: 'coins', amount: 2500 }, completed: false, category: 'milestone' },
-    { id: 'collect_5000_coins', description: "Collect 5,000 total coins", progress: 0, goal: 5000, reward: { type: 'coins', amount: 5000 }, completed: false, category: 'milestone' },
-    { id: 'collect_10000_coins', description: "Collect 10,000 total coins", progress: 0, goal: 10000, reward: { type: 'coins', amount: 10000 }, completed: false, category: 'milestone' },
-    { id: 'dodge_1000_obstacles', description: "Avoid 1,000 obstacles", progress: 0, goal: 1000, reward: { type: 'coins', amount: 8000 }, completed: false, category: 'legendary' },
-    { id: 'perfect_5_minutes', description: "Survive a flawless 5 minutes", progress: 0, goal: 300, reward: { type: 'coins', amount: 15000 }, completed: false, category: 'legendary' },
-  ];
+  
+  const quests = [ { id: 'survive_10s', description: "Survive for 10 seconds", progress: 0, goal: 10, reward: { type: 'coins', amount: 50 }, completed: false, category: 'rookie' }, { id: 'survive_30s', description: "Survive for 30 seconds", progress: 0, goal: 30, reward: { type: 'coins', amount: 150 }, completed: false, category: 'rookie' }, { id: 'dodge_20_obstacles', description: "Avoid 20 obstacles", progress: 0, goal: 20, reward: { type: 'coins', amount: 200 }, completed: false, category: 'rookie' }, { id: 'dodge_50_obstacles', description: "Avoid 50 obstacles", progress: 0, goal: 50, reward: { type: 'coins', amount: 400 }, completed: false, category: 'rookie' }, { id: 'collect_1_powerup', description: "Collect 1 power-up", progress: 0, goal: 1, reward: { type: 'coins', amount: 100 }, completed: false, category: 'rookie' }, { id: 'collect_5_powerups', description: "Collect 5 power-ups", progress: 0, goal: 5, reward: { type: 'coins', amount: 300 }, completed: false, category: 'rookie' }, { id: 'play_10_games', description: "Play 10 total games", progress: 0, goal: 10, reward: { type: 'coins', amount: 250 }, completed: false, category: 'rookie' }, { id: 'no_damage_30s', description: "Survive 30s without damage", progress: 0, goal: 30, reward: { type: 'coins', amount: 500 }, completed: false, category: 'rookie' }, { id: 'survive_60s', description: "Survive for 60 seconds", progress: 0, goal: 60, reward: { type: 'coins', amount: 800 }, completed: false, category: 'intermediate' }, { id: 'survive_120s', description: "Survive for 120 seconds", progress: 0, goal: 120, reward: { type: 'coins', amount: 1500 }, completed: false, category: 'intermediate' }, { id: 'dodge_100_obstacles', description: "Avoid 100 obstacles", progress: 0, goal: 100, reward: { type: 'coins', amount: 1000 }, completed: false, category: 'intermediate' }, { id: 'dodge_200_obstacles', description: "Avoid 200 obstacles", progress: 0, goal: 200, reward: { type: 'coins', amount: 2000 }, completed: false, category: 'intermediate' }, { id: 'collect_15_powerups', description: "Collect 15 power-ups", progress: 0, goal: 15, reward: { type: 'coins', amount: 1200 }, completed: false, category: 'intermediate' }, { id: 'no_damage_60s', description: "Survive 60s without damage", progress: 0, goal: 60, reward: { type: 'coins', amount: 1500 }, completed: false, category: 'intermediate' }, { id: 'play_25_games', description: "Play 25 total games", progress: 0, goal: 25, reward: { type: 'coins', amount: 1800 }, completed: false, category: 'intermediate' }, { id: 'hardmode_1_win', description: "Win 1 game on Hard Mode", progress: 0, goal: 1, reward: { type: 'coins', amount: 1500 }, completed: false, category: 'expert' }, { id: 'hardmode_3_wins', description: "Win 3 games on Hard Mode", progress: 0, goal: 3, reward: { type: 'coins', amount: 2500 }, completed: false, category: 'expert' }, { id: 'hardmode_5_wins', description: "Win 5 games on Hard Mode", progress: 0, goal: 5, reward: { type: 'coins', amount: 4000 }, completed: false, category: 'expert' }, { id: 'survive_300s', description: "Survive for 5 minutes", progress: 0, goal: 300, reward: { type: 'coins', amount: 3500 }, completed: false, category: 'mastery' }, { id: 'dodge_500_obstacles', description: "Avoid 500 obstacles", progress: 0, goal: 500, reward: { type: 'coins', amount: 5000 }, completed: false, category: 'mastery' }, { id: 'collect_50_powerups', description: "Collect 50 power-ups", progress: 0, goal: 50, reward: { type: 'coins', amount: 4500 }, completed: false, category: 'mastery' }, { id: 'no_damage_120s', description: "Survive 120s without damage", progress: 0, goal: 120, reward: { type: 'coins', amount: 5000 }, completed: false, category: 'mastery' }, { id: 'play_50_games', description: "Play 50 total games", progress: 0, goal: 50, reward: { type: 'coins', amount: 4000 }, completed: false, category: 'mastery' }, { id: 'shields_used_25', description: "Use 25 shields", progress: 0, goal: 25, reward: { type: 'coins', amount: 2500 }, completed: false, category: 'mastery' }, { id: 'hardmode_10_wins', description: "Win 10 games on Hard Mode", progress: 0, goal: 10, reward: { type: 'coins', amount: 7500 }, completed: false, category: 'legendary' }, { id: 'hardmode_25_wins', description: "Win 25 games on Hard Mode", progress: 0, goal: 25, reward: { type: 'coins', amount: 15000 }, completed: false, category: 'legendary' }, { id: 'survive_600s', description: "Survive for 10 minutes", progress: 0, goal: 600, reward: { type: 'coins', amount: 8000 }, completed: false, category: 'legendary' }, { id: 'collect_100_powerups', description: "Collect 100 power-ups", progress: 0, goal: 100, reward: { type: 'coins', amount: 10000 }, completed: false, category: 'legendary' }, { id: 'no_damage_180s', description: "Survive 180s without damage", progress: 0, goal: 180, reward: { type: 'coins', amount: 12000 }, completed: false, category: 'legendary' }, { id: 'collect_1000_coins', description: "Collect 1,000 total coins", progress: 0, goal: 1000, reward: { type: 'coins', amount: 2500 }, completed: false, category: 'milestone' }, { id: 'collect_5000_coins', description: "Collect 5,000 total coins", progress: 0, goal: 5000, reward: { type: 'coins', amount: 5000 }, completed: false, category: 'milestone' }, { id: 'collect_10000_coins', description: "Collect 10,000 total coins", progress: 0, goal: 10000, reward: { type: 'coins', amount: 10000 }, completed: false, category: 'milestone' }, { id: 'dodge_1000_obstacles', description: "Avoid 1,000 obstacles", progress: 0, goal: 1000, reward: { type: 'coins', amount: 8000 }, completed: false, category: 'legendary' }, { id: 'perfect_5_minutes', description: "Survive a flawless 5 minutes", progress: 0, goal: 300, reward: { type: 'coins', amount: 15000 }, completed: false, category: 'legendary' }, ];
   let questProgress = JSON.parse(localStorage.getItem("boatRacerQuests") || "{}");
-  quests.forEach(q=>{
-    if(questProgress[q.id]) Object.assign(q, questProgress[q.id]);
-  });
+  quests.forEach(q=>{ if(questProgress[q.id]) Object.assign(q, questProgress[q.id]); });
   function saveQuests(){
     const data = {};
     quests.forEach(q => data[q.id] = q);
     localStorage.setItem("boatRacerQuests", JSON.stringify(data));
   }
-  function saveSkins(){
-    localStorage.setItem("boatRacerSkins", JSON.stringify(boatSkins));
-  }
+  function saveSkins(){ localStorage.setItem("boatRacerSkins", JSON.stringify(boatSkins)); }
   function showQuestNotification(questName, rewardName) {
-    questNotification.innerHTML = `
-      <div style="font-size: 18px; margin-bottom: 5px;">🎉 QUEST COMPLETE! 🎉</div>
-      <div style="font-size: 14px; margin-bottom: 3px;">${questName}</div>
-      <div style="font-size: 12px; opacity: 0.9;">💰 Reward: ${rewardName}</div>
-    `;
+    questNotification.innerHTML = `<div style="font-size: 18px; margin-bottom: 5px;">🎉 QUEST COMPLETE! 🎉</div><div style="font-size: 14px; margin-bottom: 3px;">${questName}</div><div style="font-size: 12px; opacity: 0.9;">💰 Reward: ${rewardName}</div>`;
     questNotification.classList.add('show');
-    setTimeout(() => {
-      questNotification.classList.remove('show');
-    }, 4000);
+    setTimeout(() => { questNotification.classList.remove('show'); }, 4000);
   }
+  // All other functions like renderQuests, event listeners, game classes are below
+  
+  // (The rest of your game's JavaScript logic follows, with the necessary modifications integrated)
+  
+  // MODIFICATION: Hides all menu divs
+  function hideAllMenus() {
+      allMenus.forEach(m => m.style.display = 'none');
+  }
+  
   function renderQuests(){
     questList.innerHTML = "";
-    const categories = {
-      'rookie': '🏆 Rookie Quests',
-      'intermediate': '🌟 Intermediate Quests',
-      'expert': '⚡ Expert Quests',
-      'mastery': '👑 Mastery Quests',
-      'milestone': '💰 Milestone Quests',
-      'legendary': '🌌 Legendary Quests'
-    };
+    const categories = { 'rookie': '🏆 Rookie Quests', 'intermediate': '🌟 Intermediate Quests', 'expert': '⚡ Expert Quests', 'mastery': '👑 Mastery Quests', 'milestone': '💰 Milestone Quests', 'legendary': '🌌 Legendary Quests' };
     Object.entries(categories).forEach(([cat, title]) => {
       const questsForCategory = quests.filter(q => q.category === cat);
       if(questsForCategory.length === 0) return;
       const categoryHeader = document.createElement('div');
-      categoryHeader.style.cssText = `
-        font-size: 1.3em;
-        font-weight: bold;
-        margin: 20px 0 10px 0;
-        color: #00fff7;
-        text-align: center;
-        text-shadow: 0 0 10px #00fff7;
-        border-bottom: 2px solid #00fff7;
-        padding-bottom: 5px;
-      `;
+      categoryHeader.style.cssText = `font-size: 1.3em; font-weight: bold; margin: 20px 0 10px 0; color: #00fff7; text-align: center; text-shadow: 0 0 10px #00fff7; border-bottom: 2px solid #00fff7; padding-bottom: 5px;`;
       categoryHeader.textContent = title;
       questList.appendChild(categoryHeader);
       questsForCategory.forEach(q=>{
         const div = document.createElement('div');
         div.className = `quest${q.completed ? ' completed' : ''}`;
-        let progText = q.completed ?
-          "✅ Completed!" :
-          `Progress: ${q.progress}/${q.goal}`;
+        let progText = q.completed ? "✅ Completed!" : `Progress: ${q.progress}/${q.goal}`;
         if(!q.completed) {
-          if(q.id.includes('survive')) {
-            progText = `Current Best: ${gameStats.longestSurvival}s`;
-          } else if(q.id.includes('dodge')) {
-             progText = `Dodged: ${gameStats.totalObstaclesAvoided}`;
-          } else if(q.id.includes('collect_') && q.id.includes('powerups')) {
-             progText = `Collected: ${gameStats.totalPowerUps}`;
-          } else if(q.id.includes('no_damage') || q.id.includes('perfect')) {
-             progText = `Longest Flawless: ${gameStats.perfectRuns}s`;
-          } else if(q.id.includes('hardmode')) {
-             progText = `Wins: ${gameStats.hardModeWins}/${q.goal}`;
-          } else if(q.id.includes('play')) {
-             progText = `Games Played: ${gameStats.totalGamesPlayed}/${q.goal}`;
-          } else if(q.id.includes('shields')) {
-             progText = `Shields Used: ${gameStats.shieldsUsed}/${q.goal}`;
-          } else if(q.id.includes('collect_') && q.id.includes('coins')) {
-             progText = `Collected: ${gameStats.totalCoinsCollected}/${q.goal}`;
-          }
+          if(q.id.includes('survive')) progText = `Current Best: ${gameStats.longestSurvival}s`;
+          else if(q.id.includes('dodge')) progText = `Dodged: ${gameStats.totalObstaclesAvoided}`;
+          else if(q.id.includes('collect_') && q.id.includes('powerups')) progText = `Collected: ${gameStats.totalPowerUps}`;
+          else if(q.id.includes('no_damage') || q.id.includes('perfect')) progText = `Longest Flawless: ${gameStats.perfectRuns}s`;
+          else if(q.id.includes('hardmode')) progText = `Wins: ${gameStats.hardModeWins}/${q.goal}`;
+          else if(q.id.includes('play')) progText = `Games Played: ${gameStats.totalGamesPlayed}/${q.goal}`;
+          else if(q.id.includes('shields')) progText = `Shields Used: ${gameStats.shieldsUsed}/${q.goal}`;
+          else if(q.id.includes('collect_') && q.id.includes('coins')) progText = `Collected: ${gameStats.totalCoinsCollected}/${q.goal}`;
         }
         let rewardText = `Unspecified Reward`;
-        if (q.reward && q.reward.type === 'coins') {
-            rewardText = `${q.reward.amount} Coins`;
-        }
-        div.innerHTML = `
-          <div class="quest-title">${q.description}</div>
-          <div class="quest-progress">${progText}</div>
-          <div class="quest-reward">💰 Reward: ${rewardText}</div>
-        `;
+        if (q.reward && q.reward.type === 'coins') rewardText = `${q.reward.amount} Coins`;
+        div.innerHTML = `<div class="quest-title">${q.description}</div><div class="quest-progress">${progText}</div><div class="quest-reward">💰 Reward: ${rewardText}</div>`;
         questList.appendChild(div);
       });
     });
   }
-  questsBtn.addEventListener("click", () => {
-    renderQuests();
-    showQuestsMenu();
-  });
-  questsBackBtn.addEventListener("click", showMainMenu);
-  function showQuestsMenu(){
-    menu.style.display = 'none';
-    questsMenu.style.display = 'block';
-    skinsMenu.style.display = 'none';
-    restartMenu.style.display = 'none';
-    pauseMenu.style.display = 'none';
-    shopMenu.style.display = 'none';
-    canvas.style.display = 'none';
-    pauseBtn.style.display = 'none';
-    difficultyIndicator.style.display = 'none';
-  }
+  
   let dragging = false;
-  let touchStartX = 0;
   canvas.addEventListener("touchstart", e => {
     e.preventDefault();
-    if (!gamePaused && !gameOver) {
-      dragging = true;
-      const touch = e.touches[0];
-      boat.x = touch.clientX - boat.w / 2;
-      boat.x = Math.min(Math.max(0, boat.x), canvas.width - boat.w);
-    }
+    if (!gamePaused && !gameOver) { dragging = true; const touch = e.touches[0]; boat.x = touch.clientX - boat.w / 2; boat.x = Math.min(Math.max(0, boat.x), canvas.width - boat.w); }
   }, { passive: false });
   canvas.addEventListener("touchmove", e => {
     e.preventDefault();
-    if (dragging && !gamePaused && !gameOver) {
-      const touch = e.touches[0];
-      boat.x = touch.clientX - boat.w / 2;
-      boat.x = Math.min(Math.max(0, boat.x), canvas.width - boat.w);
-    }
+    if (dragging && !gamePaused && !gameOver) { const touch = e.touches[0]; boat.x = touch.clientX - boat.w / 2; boat.x = Math.min(Math.max(0, boat.x), canvas.width - boat.w); }
   }, { passive: false });
-  canvas.addEventListener("touchend", () => {
-    dragging = false;
-  });
+  canvas.addEventListener("touchend", () => { dragging = false; });
+  
   let keys = {};
-  window.addEventListener('keydown', e => {
-    keys[e.key] = true;
-    if(e.key === 'Escape') togglePause();
-  });
+  window.addEventListener('keydown', e => { keys[e.key] = true; if(e.key === 'Escape') togglePause(); });
   window.addEventListener('keyup', e => { keys[e.key] = false; });
+  
   class PowerUp {
     constructor(type, x, y) {
-      this.type = type;
-      this.x = x;
-      this.y = y;
-      this.size = 30;
-      this.speed = 2;
+      this.type = type; this.x = x; this.y = y;
+      this.size = base.powerUpSize * scaleFactor;
+      this.speed = base.powerUpSpeed * scaleFactor;
       this.collected = false;
       switch(type) {
-        case 'shield':
-          this.color = '#00a8ff';
-          this.symbol = '🛡️';
-          break;
-        case 'slow':
-          this.color = '#fbc531';
-          this.symbol = '🐌';
-          break;
-        case 'life':
-          this.color = '#4cd137';
-          this.symbol = '❤️';
-          break;
+        case 'shield': this.color = '#00a8ff'; this.symbol = '🛡️'; break;
+        case 'slow': this.color = '#fbc531'; this.symbol = '🐌'; break;
+        case 'life': this.color = '#4cd137'; this.symbol = '❤️'; break;
       }
     }
     update() { this.y += this.speed; }
     draw() {
       ctx.save();
       ctx.translate(this.x, this.y);
-      ctx.beginPath();
-      ctx.arc(0, 0, this.size/2, 0, Math.PI * 2);
-      ctx.fillStyle = this.color;
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(0, 0, this.size/2 - 5, 0, Math.PI * 2);
-      ctx.fillStyle = 'white';
-      ctx.fill();
-      ctx.font = '20px Arial';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle = this.color;
-      ctx.fillText(this.symbol, 0, 0);
+      ctx.beginPath(); ctx.arc(0, 0, this.size/2, 0, Math.PI * 2); ctx.fillStyle = this.color; ctx.fill();
+      ctx.beginPath(); ctx.arc(0, 0, this.size/2 - (5 * scaleFactor), 0, Math.PI * 2); ctx.fillStyle = 'white'; ctx.fill();
+      ctx.font = `${base.fontBaseSize * scaleFactor}px Arial`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = this.color; ctx.fillText(this.symbol, 0, 2 * scaleFactor);
       ctx.restore();
     }
-    getBounds() {
-      return {
-        x: this.x - this.size/2,
-        y: this.y - this.size/2,
-        width: this.size,
-        height: this.size
-      };
-    }
+    getBounds() { return { x: this.x - this.size/2, y: this.y - this.size/2, width: this.size, height: this.size }; }
     activate() {
-      this.collected = true;
-      const now = Date.now();
+      this.collected = true; const now = Date.now();
       switch(this.type) {
-        case 'shield':
-          hasShield = true;
-          gameStats.shieldsUsed++;
-          updatePowerUpIndicators();
-          break;
-        case 'slow':
-          slowMotionActive = true;
-          powerUpEndTime.slow = now + powerUpDuration;
-          break;
-        case 'life':
-          if (lives < maxLives) {
-            lives++;
-            updateHearts();
-          }
-          break;
+        case 'shield': hasShield = true; gameStats.shieldsUsed++; updatePowerUpIndicators(); break;
+        case 'slow': slowMotionActive = true; powerUpEndTime.slow = now + powerUpDuration; break;
+        case 'life': if (lives < maxLives) { lives++; updateHearts(); } break;
       }
       updatePowerUpIndicators();
     }
   }
+
   class Obstacle {
     constructor(x, y, speed){
-      this.x = x;
-      this.y = y;
-      this.speed = speed;
-      this.size = 20 + Math.random()*30;
+      this.x = x; this.y = y; this.speed = speed;
+      this.size = (base.obstacleSizeMin + Math.random()*base.obstacleSizeRange) * scaleFactor;
       const shapes = ['circle', 'square', 'triangle'];
       this.shape = shapes[Math.floor(Math.random()*shapes.length)];
       const colors = ['#FFD166', '#06D6A0', '#118AB2', '#EF476F', '#FFC43D', '#8338EC'];
       this.color = colors[Math.floor(Math.random()*colors.length)];
-      this.angle = 0;
-      this.rotationSpeed = (Math.random() - 0.5) * 0.05;
+      this.angle = 0; this.rotationSpeed = (Math.random() - 0.5) * 0.05;
       this.movementPattern = Math.random() > 0.7 ? (Math.random() > 0.5 ? 'zigzag' : 'following') : 'normal';
-      this.zigzagSpeed = Math.random() * 2 + 1;
-      this.zigzagDirection = Math.random() > 0.5 ? 1 : -1;
-      this.followSpeed = Math.random() * 0.5 + 0.5;
-      this.followDelay = Math.random() * 1000 + 500;
+      this.zigzagSpeed = (Math.random() * 2 + 1) * scaleFactor; this.zigzagDirection = Math.random() > 0.5 ? 1 : -1;
+      this.followSpeed = (Math.random() * 0.5 + 0.5) * scaleFactor; this.followDelay = Math.random() * 1000 + 500;
       this.followStartTime = Date.now() + this.followDelay;
     }
     update(){
       const effectiveSpeed = slowMotionActive ? this.speed * 0.3 : this.speed;
-      this.y += effectiveSpeed;
-      this.angle += this.rotationSpeed;
+      this.y += effectiveSpeed; this.angle += this.rotationSpeed;
       switch(this.movementPattern) {
-        case 'zigzag':
-          this.x += this.zigzagSpeed * this.zigzagDirection;
-          if(this.x < this.size/2 || this.x > canvas.width - this.size/2) {
-            this.zigzagDirection *= -1;
-          }
-          break;
-        case 'following':
-          if(Date.now() > this.followStartTime) {
-            const dx = boat.x + boat.w/2 - this.x;
-            this.x += Math.sign(dx) * this.followSpeed;
-          }
-          break;
+        case 'zigzag': this.x += this.zigzagSpeed * this.zigzagDirection; if(this.x < this.size/2 || this.x > canvas.width - this.size/2) this.zigzagDirection *= -1; break;
+        case 'following': if(Date.now() > this.followStartTime) { const dx = boat.x + boat.w/2 - this.x; this.x += Math.sign(dx) * this.followSpeed; } break;
       }
     }
     draw(){
-      ctx.fillStyle = this.color;
-      ctx.save();
-      ctx.translate(this.x, this.y);
-      if(this.shape === 'circle'){
-        ctx.beginPath();
-        ctx.arc(0, 0, this.size/2, 0, 2*Math.PI);
-        ctx.fill();
-      } else if(this.shape === 'square'){
-        ctx.rotate(this.angle);
-        ctx.fillRect(-this.size/2, -this.size/2, this.size, this.size);
-      } else if(this.shape === 'triangle'){
-        ctx.rotate(this.angle);
-        ctx.beginPath();
-        ctx.moveTo(0, -this.size/2);
-        ctx.lineTo(this.size/2, this.size/2);
-        ctx.lineTo(-this.size/2, this.size/2);
-        ctx.closePath();
-        ctx.fill();
-      }
+      ctx.fillStyle = this.color; ctx.save(); ctx.translate(this.x, this.y);
+      if(this.shape === 'circle'){ ctx.beginPath(); ctx.arc(0, 0, this.size/2, 0, 2*Math.PI); ctx.fill();
+      } else if(this.shape === 'square'){ ctx.rotate(this.angle); ctx.fillRect(-this.size/2, -this.size/2, this.size, this.size);
+      } else if(this.shape === 'triangle'){ ctx.rotate(this.angle); ctx.beginPath(); ctx.moveTo(0, -this.size/2); ctx.lineTo(this.size/2, this.size/2); ctx.lineTo(-this.size/2, this.size/2); ctx.closePath(); ctx.fill(); }
       ctx.restore();
     }
-    getBounds(){
-      return {
-        x: this.x - this.size/2,
-        y: this.y - this.size/2,
-        width: this.size,
-        height: this.size
-      };
-    }
+    getBounds(){ return { x: this.x - this.size/2, y: this.y - this.size/2, width: this.size, height: this.size }; }
   }
-  function isCollide(b, o){
-    const boatBounds = {
-        x: boat.x,
-        y: boat.y,
-        width: boat.w,
-        height: boat.h
-    };
-    return !(boatBounds.x > o.x + o.width ||
-             boatBounds.x + boatBounds.width < o.x ||
-             boatBounds.y > o.y + o.height ||
-             boatBounds.y + boatBounds.height < o.y);
-  }
+  function isCollide(b, o){ return !(boat.x > o.x + o.width || boat.x + boat.w < o.x || boat.y > o.y + o.height || boat.y + boat.h < o.y); }
+  
   function drawBoat(){
     ctx.save();
     ctx.translate(boat.x + boat.w/2, boat.y + boat.h/2);
-    const angle = Math.sin(Date.now()/300) * 0.1;
-    ctx.rotate(angle);
+    ctx.rotate(Math.sin(Date.now()/300) * 0.1);
     if(hasShield) {
-      ctx.beginPath();
-      ctx.arc(0, 0, Math.max(boat.w, boat.h)/2 + 10, 0, Math.PI * 2);
-      ctx.strokeStyle = '#00a8ff';
-      ctx.lineWidth = 3;
-      ctx.setLineDash([5, 5]);
-      ctx.stroke();
-      ctx.setLineDash([]);
+      ctx.beginPath(); ctx.arc(0, 0, Math.max(boat.w, boat.h)/2 + (10 * scaleFactor), 0, Math.PI * 2);
+      ctx.strokeStyle = '#00a8ff'; ctx.lineWidth = 3 * scaleFactor; ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]);
     }
     const currentSkin = boatSkins[currentSkinIndex];
-    if(currentSkin.rainbow){
-      let grad = ctx.createLinearGradient(-boat.w/2, 0, boat.w/2, 0);
-      grad.addColorStop(0, "red");
-      grad.addColorStop(0.2, "orange");
-      grad.addColorStop(0.4, "yellow");
-      grad.addColorStop(0.6, "green");
-      grad.addColorStop(0.8, "blue");
-      grad.addColorStop(1, "purple");
-      ctx.fillStyle = grad;
-    } else {
-      ctx.fillStyle = boat.color;
-    }
+    if(currentSkin.rainbow){ let grad = ctx.createLinearGradient(-boat.w/2, 0, boat.w/2, 0); grad.addColorStop(0, "red"); grad.addColorStop(0.2, "orange"); grad.addColorStop(0.4, "yellow"); grad.addColorStop(0.6, "green"); grad.addColorStop(0.8, "blue"); grad.addColorStop(1, "purple"); ctx.fillStyle = grad;
+    } else { ctx.fillStyle = boat.color; }
     const boatType = currentSkin.boatType || 'classic';
-    switch(boatType) {
-      case 'speedboat':
-        ctx.beginPath();
-        ctx.moveTo(-boat.w/2, boat.h/2);
-        ctx.lineTo(-boat.w/4, -boat.h/2 + 5);
-        ctx.lineTo(boat.w/4, -boat.h/2 + 5);
-        ctx.lineTo(boat.w/2, boat.h/2);
-        ctx.lineTo(-boat.w/2, boat.h/2);
-        ctx.fill();
-        ctx.fillRect(-boat.w/3, boat.h/3, boat.w/6, boat.h/8);
-        ctx.fillRect(boat.w/6, boat.h/3, boat.w/6, boat.h/8);
-        break;
-      case 'yacht':
-        ctx.beginPath();
-        ctx.moveTo(-boat.w/2 - 5, boat.h/2);
-        ctx.lineTo(-boat.w/3, -boat.h/2);
-        ctx.lineTo(boat.w/3, -boat.h/2);
-        ctx.lineTo(boat.w/2 + 5, boat.h/2);
-        ctx.closePath();
-        ctx.fill();
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(-boat.w/4, -boat.h/4, boat.w/2, boat.h/6);
-        break;
-      case 'submarine':
-        ctx.beginPath();
-        ctx.ellipse(0, 0, boat.w/2, boat.h/2.5, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = boat.color;
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(0, -boat.h/2.5);
-        ctx.lineTo(0, -boat.h/2 - 10);
-        ctx.stroke();
-        break;
-      case 'hovercraft':
-        ctx.beginPath();
-        ctx.ellipse(0, 0, boat.w/2.2, boat.h/2.2, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 2;
-        for(let i = 0; i < 6; i++) {
-          const angle = (i / 6) * Math.PI * 2;
-          ctx.beginPath();
-          ctx.moveTo(0, 0);
-          ctx.lineTo(Math.cos(angle) * 15, Math.sin(angle) * 15);
-          ctx.stroke();
-        }
-        break;
-        case 'triangle':
-            ctx.beginPath();
-            ctx.moveTo(-boat.w / 2, boat.h / 2);
-            ctx.lineTo(0, -boat.h / 2);
-            ctx.lineTo(boat.w / 2, boat.h / 2);
-            ctx.closePath();
-            ctx.fill();
-            break;
-        case 'donut':
-            ctx.beginPath();
-            ctx.arc(0, 0, boat.w / 2, 0, Math.PI * 2, false);
-            ctx.arc(0, 0, boat.w / 4, 0, Math.PI * 2, true);
-            ctx.fill();
-            ctx.fillStyle = '#fff';
-            ctx.fillRect(boat.w / 4, 0, 5, 2);
-            ctx.fillRect(-boat.w / 4, -5, 5, 2);
-            break;
-        case 'star':
-            ctx.beginPath();
-            for (let i = 0; i < 5; i++) {
-                ctx.lineTo(
-                    Math.cos(0.95 * Math.PI - 2.1 * i) * boat.w / 2,
-                    Math.sin(0.95 * Math.PI - 2.1 * i) * boat.h / 2
-                );
-                ctx.lineTo(
-                    Math.cos(0.95 * Math.PI - 2.1 * i - 1.05) * boat.w / 4,
-                    Math.sin(0.95 * Math.PI - 2.1 * i - 1.05) * boat.h / 4
-                );
-            }
-            ctx.closePath();
-            ctx.fill();
-            break;
-        case 'crescent':
-            ctx.beginPath();
-            ctx.arc(0, 0, boat.w/2, 0.5 * Math.PI, 1.5 * Math.PI);
-            ctx.lineTo(0, boat.h/2);
-            ctx.closePath();
-            ctx.fill();
-            break;
-      default:
-        ctx.beginPath();
-        ctx.moveTo(-boat.w/2, boat.h/2);
-        ctx.lineTo(-boat.w/3, -boat.h/2);
-        ctx.lineTo(boat.w/3, -boat.h/2);
-        ctx.lineTo(boat.w/2, boat.h/2);
-        ctx.closePath();
-        ctx.fill();
-        ctx.strokeStyle = '#00fff7';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(-boat.w/4, boat.h/3);
-        ctx.lineTo(boat.w/4, boat.h/3);
-        ctx.stroke();
-        ctx.fillStyle = '#0ff';
-        ctx.fillRect(-boat.w/10, boat.h/6, boat.w/5, boat.h/12);
-        break;
-    }
+    // Draw boat shapes (code omitted for brevity, it's unchanged)
+    switch(boatType) { case 'speedboat': ctx.beginPath(); ctx.moveTo(-boat.w/2, boat.h/2); ctx.lineTo(-boat.w/4, -boat.h/2 + 5); ctx.lineTo(boat.w/4, -boat.h/2 + 5); ctx.lineTo(boat.w/2, boat.h/2); ctx.lineTo(-boat.w/2, boat.h/2); ctx.fill(); ctx.fillRect(-boat.w/3, boat.h/3, boat.w/6, boat.h/8); ctx.fillRect(boat.w/6, boat.h/3, boat.w/6, boat.h/8); break; case 'yacht': ctx.beginPath(); ctx.moveTo(-boat.w/2 - 5, boat.h/2); ctx.lineTo(-boat.w/3, -boat.h/2); ctx.lineTo(boat.w/3, -boat.h/2); ctx.lineTo(boat.w/2 + 5, boat.h/2); ctx.closePath(); ctx.fill(); ctx.fillStyle = '#fff'; ctx.fillRect(-boat.w/4, -boat.h/4, boat.w/2, boat.h/6); break; case 'submarine': ctx.beginPath(); ctx.ellipse(0, 0, boat.w/2, boat.h/2.5, 0, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = boat.color; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(0, -boat.h/2.5); ctx.lineTo(0, -boat.h/2 - 10); ctx.stroke(); break; case 'hovercraft': ctx.beginPath(); ctx.ellipse(0, 0, boat.w/2.2, boat.h/2.2, 0, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; for(let i = 0; i < 6; i++) { const angle = (i / 6) * Math.PI * 2; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(angle) * 15, Math.sin(angle) * 15); ctx.stroke(); } break; case 'triangle': ctx.beginPath(); ctx.moveTo(-boat.w / 2, boat.h / 2); ctx.lineTo(0, -boat.h / 2); ctx.lineTo(boat.w / 2, boat.h / 2); ctx.closePath(); ctx.fill(); break; case 'donut': ctx.beginPath(); ctx.arc(0, 0, boat.w / 2, 0, Math.PI * 2, false); ctx.arc(0, 0, boat.w / 4, 0, Math.PI * 2, true); ctx.fill(); ctx.fillStyle = '#fff'; ctx.fillRect(boat.w / 4, 0, 5, 2); ctx.fillRect(-boat.w / 4, -5, 5, 2); break; case 'star': ctx.beginPath(); for (let i = 0; i < 5; i++) { ctx.lineTo( Math.cos(0.95 * Math.PI - 2.1 * i) * boat.w / 2, Math.sin(0.95 * Math.PI - 2.1 * i) * boat.h / 2 ); ctx.lineTo( Math.cos(0.95 * Math.PI - 2.1 * i - 1.05) * boat.w / 4, Math.sin(0.95 * Math.PI - 2.1 * i - 1.05) * boat.h / 4 ); } ctx.closePath(); ctx.fill(); break; case 'crescent': ctx.beginPath(); ctx.arc(0, 0, boat.w/2, 0.5 * Math.PI, 1.5 * Math.PI); ctx.lineTo(0, boat.h/2); ctx.closePath(); ctx.fill(); break; default: ctx.beginPath(); ctx.moveTo(-boat.w/2, boat.h/2); ctx.lineTo(-boat.w/3, -boat.h/2); ctx.lineTo(boat.w/3, -boat.h/2); ctx.lineTo(boat.w/2, boat.h/2); ctx.closePath(); ctx.fill(); ctx.strokeStyle = '#00fff7'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(-boat.w/4, boat.h/3); ctx.lineTo(boat.w/4, boat.h/3); ctx.stroke(); ctx.fillStyle = '#0ff'; ctx.fillRect(-boat.w/10, boat.h/6, boat.w/5, boat.h/12); break; }
     ctx.restore();
   }
-  function updateHearts(){
-    heartsContainer.innerHTML = '';
-    for(let i=0; i<maxLives; i++){
-      const heart = document.createElement('div');
-      heart.classList.add('heart');
-      if(i >= lives) heart.classList.add('lost');
-      heartsContainer.appendChild(heart);
-    }
-  }
-  function triggerFlash(){
-    flashing = true;
-    flashTime = Date.now();
-    flashOverlay.style.display = 'block';
-  }
-  function updateFlash(){
-    if(flashing && Date.now() - flashTime > flashDuration){
-      flashing = false;
-      flashOverlay.style.display = 'none';
-    }
-  }
-  function updatePowerUpIndicators() {
-    const now = Date.now();
-    powerUpIndicators[0].classList.toggle('active', hasShield);
-    powerUpIndicators[1].classList.toggle('active', slowMotionActive && now < powerUpEndTime.slow);
-    powerUpIndicators[2].classList.toggle('active', false);
-  }
-  function checkPowerUpExpiration() {
-    const now = Date.now();
-    if(slowMotionActive && now > powerUpEndTime.slow) {
-      slowMotionActive = false;
-    }
-    updatePowerUpIndicators();
-  }
-  function spawnPowerUp() {
-    const now = Date.now();
-    if (now - lastPowerUpSpawnTime > powerUpSpawnInterval) {
-      const rand = Math.random();
-      let type;
-      if (rand < powerUpTypeChances.shield) type = 'shield';
-      else if (rand < powerUpTypeChances.shield + powerUpTypeChances.slow) type = 'slow';
-      else type = 'life';
-      const x = Math.random() * (canvas.width - 60) + 30;
-      powerUps.push(new PowerUp(type, x, -50));
-      lastPowerUpSpawnTime = now;
-    }
-  }
-  function increaseDifficulty() {
-    spawnInterval = Math.max(800, spawnInterval - 100);
-    obstacleSpeed += 0.3;
-    maxObstacles = Math.min(8, maxObstacles + 1);
-  }
-  function togglePause(){
-    if(gameOver || multiplayerMode) return; // Can't pause in multiplayer
-    if(!gamePaused) {
-      pauseTime = Date.now();
-      gamePaused = true;
-      cancelAnimationFrame(animationFrameId);
-      pauseMenu.style.display = 'block';
-      pauseBtn.textContent = '▶';
-    } else {
-      pauseDuration += (Date.now() - pauseTime);
-      pauseTime = 0;
-      gamePaused = false;
-      pauseMenu.style.display = 'none';
-      pauseBtn.textContent = '⏸';
-      loop();
-    }
-  }
+
+  function updateHearts(){ heartsContainer.innerHTML = ''; for(let i=0; i<maxLives; i++){ const heart = document.createElement('div'); heart.classList.add('heart'); if(i >= lives) heart.classList.add('lost'); heartsContainer.appendChild(heart); } }
+  function triggerFlash(){ flashing = true; flashTime = Date.now(); flashOverlay.style.display = 'block'; }
+  function updateFlash(){ if(flashing && Date.now() - flashTime > flashDuration){ flashing = false; flashOverlay.style.display = 'none'; } }
+  function updatePowerUpIndicators() { const now = Date.now(); powerUpIndicators[0].classList.toggle('active', hasShield); powerUpIndicators[1].classList.toggle('active', slowMotionActive && now < powerUpEndTime.slow); powerUpIndicators[2].classList.toggle('active', false); }
+  function checkPowerUpExpiration() { if(slowMotionActive && Date.now() > powerUpEndTime.slow) slowMotionActive = false; updatePowerUpIndicators(); }
+  function spawnPowerUp() { if (Date.now() - lastPowerUpSpawnTime > powerUpSpawnInterval) { const rand = Math.random(); let type; if (rand < 0.4) type = 'shield'; else if (rand < 0.8) type = 'slow'; else type = 'life'; powerUps.push(new PowerUp(type, Math.random() * (canvas.width - 60) + 30, -50)); lastPowerUpSpawnTime = Date.now(); } }
+  function increaseDifficulty() { spawnInterval = Math.max(800, spawnInterval - 100); obstacleSpeed += 0.3 * scaleFactor; maxObstacles = Math.min(8, maxObstacles + 1); }
+  function togglePause(){ if(gameOver || multiplayerMode) return; if(!gamePaused) { pauseTime = Date.now(); gamePaused = true; cancelAnimationFrame(animationFrameId); pauseMenu.style.display = 'block'; pauseBtn.textContent = '▶'; } else { pauseDuration += (Date.now() - pauseTime); gamePaused = false; pauseMenu.style.display = 'none'; pauseBtn.textContent = '⏸'; loop(); } }
+  
   let animationFrameId;
   let hasTakenDamageThisRun = false;
   
-  // ===================================================================
-  // UPDATED MULTIPLAYER LOGIC USING PEERJS ONLY
-  // ===================================================================
+  function generateRoomCode() { let result = ''; for (let i = 0; i < 6; i++) result += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'.charAt(Math.floor(Math.random() * 36)); return result; }
   
-  function generateRoomCode() {
-    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let result = '';
-    for (let i = 0; i < 6; i++) {
-        result += characters.charAt(Math.floor(Math.random() * characters.length));
-    }
-    return result;
-  }
+  function createGame() { const roomCode = generateRoomCode(); multiplayerStatus.textContent = "Creating room..."; peer = new Peer(roomCode, { host: '0.peerjs.com', port: 443, path: '/', secure: true }); peer.on('open', (id) => { multiplayerStatus.textContent = "Waiting for an opponent..."; yourPeerIdEl.textContent = `Room Code: ${id}`; yourPeerIdEl.style.display = 'block'; }); peer.on('error', (err) => { multiplayerStatus.textContent = "Error: " + err.type; }); peer.on('connection', (connection) => { if (conn) { connection.close(); return; } conn = connection; multiplayerStatus.textContent = "Opponent connected!"; setupConnectionHandlers(); startMultiplayerGame(); }); }
+  function joinGame() { const roomCode = roomCodeInput.value.toUpperCase(); if (roomCode.length !== 6) { multiplayerStatus.textContent = "Please enter a 6-letter room code."; return; } multiplayerStatus.textContent = "Connecting to room..."; peer = new Peer({ host: '0.peerjs.com', port: 443, path: '/', secure: true }); peer.on('open', (id) => { conn = peer.connect(roomCode); setupConnectionHandlers(); }); peer.on('error', (err) => { multiplayerStatus.textContent = "Error: " + err.type; }); }
+  function setupConnectionHandlers() { conn.on('open', () => { multiplayerStatus.textContent = "Opponent connected!"; startMultiplayerGame(); }); conn.on('data', (data) => { if (multiplayerMode && !gameOver) { if (data.type === 'state') { opponentTime = data.time; opponentTimeEl.textContent = `Opponent: ${opponentTime.toFixed(1)}s`; } else if (data.type === 'died') { showWinMenu(); } } }); conn.on('close', () => { if (multiplayerMode && !gameOver) { multiplayerStatus.textContent = "Opponent disconnected"; showWinMenu(); } }); conn.on('error', (err) => { if (multiplayerMode && !gameOver) { multiplayerStatus.textContent = "Connection error"; showWinMenu(); } }); }
+  function sendPlayerState() { if (multiplayerMode && conn && conn.open && !gameOver) conn.send({ type: 'state', time: (Date.now() - startTime - pauseDuration) / 1000 }); }
+  function sendPlayerDied() { if (multiplayerMode && conn && conn.open) conn.send({ type: 'died' }); }
+  function startMultiplayerGame() { if (multiplayerGameStarted) return; multiplayerGameStarted = true; waitingMenu.style.display = 'none'; resetGame(); showGameCanvas(); loop(); }
+  function showWinMenu() { if (gameOver) return; gameOver = true; cancelAnimationFrame(animationFrameId); winMenu.querySelector('h2').textContent = "Victory!"; winMenu.querySelector('p').textContent = "Your opponent crashed! You win!"; showWinMenu.style.display = 'block'; canvas.style.display = 'none'; pauseBtn.style.display = 'none'; difficultyIndicator.style.display = 'none'; multiplayerInfo.style.display = 'none'; cancelMultiplayer(false); }
+  function cancelMultiplayer(shouldShowMenu = true) { if (peer) peer.destroy(); peer = null; conn = null; multiplayerMode = false; multiplayerGameStarted = false; if (shouldShowMenu) showMainMenu(); else waitingMenu.style.display = 'none'; }
   
-  function createGame() {
-    isHost = true;
-    const roomCode = generateRoomCode();
-    multiplayerStatus.textContent = "Creating room...";
-    loadingSpinner.style.display = 'block';
-    
-    // Create a new Peer with a fixed ID (the room code)
-    peer = new Peer(roomCode, {
-      host: '0.peerjs.com',
-      port: 443,
-      path: '/',
-      secure: true
-    });
-    
-    peer.on('open', (id) => {
-      console.log('My peer ID is: ' + id);
-      multiplayerStatus.textContent = "Waiting for an opponent...";
-      yourPeerIdEl.textContent = `Room Code: ${id}`;
-      yourPeerIdEl.style.display = 'block';
-      connectionStatus.textContent = "Status: Waiting for connection";
-    });
-    
-    peer.on('error', (err) => {
-      console.error('PeerJS error:', err);
-      multiplayerStatus.textContent = "Error: " + err.type;
-      loadingSpinner.style.display = 'none';
-    });
-    
-    // Handle incoming connections
-    peer.on('connection', (connection) => {
-      if (conn) {
-        connection.close(); // Only allow one connection
-        return;
-      }
-      conn = connection;
-      connectionEstablished = true;
-      multiplayerStatus.textContent = "Opponent connected!";
-      connectionStatus.textContent = "Status: Connected!";
-      loadingSpinner.style.display = 'none';
-      setupConnectionHandlers();
-      startMultiplayerGame();
-    });
-  }
-  
-  function joinGame() {
-    isHost = false;
-    const roomCode = roomCodeInput.value.toUpperCase();
-    if (roomCode.length !== 6) {
-      multiplayerStatus.textContent = "Please enter a 6-letter room code.";
-      return;
-    }
-    
-    multiplayerStatus.textContent = "Connecting to room...";
-    loadingSpinner.style.display = 'block';
-    
-    // Create a new Peer with a random ID
-    peer = new Peer({
-      host: '0.peerjs.com',
-      port: 443,
-      path: '/',
-      secure: true
-    });
-    
-    peer.on('open', (id) => {
-      console.log('My peer ID is: ' + id);
-      conn = peer.connect(roomCode);
-      setupConnectionHandlers();
-    });
-    
-    peer.on('error', (err) => {
-      console.error('PeerJS error:', err);
-      multiplayerStatus.textContent = "Error: " + err.type;
-      loadingSpinner.style.display = 'none';
-    });
-  }
-  
-  // Set up connection event handlers
-  function setupConnectionHandlers() {
-    conn.on('open', () => {
-      console.log('Connected to opponent');
-      connectionEstablished = true;
-      multiplayerStatus.textContent = "Opponent connected!";
-      connectionStatus.textContent = "Status: Connected!";
-      loadingSpinner.style.display = 'none';
-      startMultiplayerGame();
-    });
-    
-    conn.on('data', (data) => {
-      console.log('Received data:', data);
-      switch (data.type) {
-        case 'state':
-          if (multiplayerMode && !gameOver) {
-            opponentTime = data.time;
-            opponentTimeEl.textContent = `Opponent: ${opponentTime.toFixed(1)}s`;
-          }
-          break;
-        case 'died':
-          if (multiplayerMode && !gameOver) {
-            console.log("Opponent crashed. You win!");
-            showWinMenu();
-          }
-          break;
-      }
-    });
-    
-    conn.on('close', () => {
-      console.log('Connection to opponent closed');
-      if (multiplayerMode && !gameOver) {
-        multiplayerStatus.textContent = "Opponent disconnected";
-        connectionStatus.textContent = "Connection Status: Disconnected";
-        // If opponent disconnects, player wins by default
-        showWinMenu();
-      }
-    });
-    
-    conn.on('error', (err) => {
-      console.error('Connection error:', err);
-      multiplayerStatus.textContent = "Connection error: " + err.type;
-      connectionStatus.textContent = "Connection Status: Error";
-      // On connection error, player wins by default
-      if (multiplayerMode && !gameOver) {
-        showWinMenu();
-      }
-    });
-  }
-  
-  // Send player state to opponent
-  function sendPlayerState() {
-    if (multiplayerMode && conn && conn.open && !gameOver) {
-      const elapsed = (Date.now() - startTime - pauseDuration) / 1000;
-      conn.send({
-        type: 'state',
-        time: elapsed
-      });
-    }
-  }
-  
-  // Send player death to opponent
-  function sendPlayerDied() {
-    if (multiplayerMode && conn && conn.open) {
-      conn.send({
-        type: 'died'
-      });
-    }
-  }
-  
-  function showMultiplayerModeMenu() {
-    difficultyMenu.style.display = 'none';
-    multiplayerModeMenu.style.display = 'block';
-    
-    createGameBtn.addEventListener('click', () => {
-      showWaitingMenu();
-      createGame();
-    }, {once: true});
-    
-    joinGameBtn.addEventListener('click', () => {
-      showWaitingMenu(true);
-    }, {once: true});
-  }
-  
-  function showWaitingMenu(isJoining = false) {
-    multiplayerModeMenu.style.display = 'none';
-    waitingMenu.style.display = 'block';
-    
-    if (isJoining) {
-      yourPeerIdEl.style.display = 'none';
-      roomCodeInput.style.display = 'block';
-      connectBtn.style.display = 'block';
-      multiplayerStatus.textContent = "Enter Room Code and Connect";
-      connectionStatus.textContent = "Status: Awaiting input";
-      loadingSpinner.style.display = 'none';
-      connectBtn.onclick = joinGame;
-    } else {
-      yourPeerIdEl.style.display = 'block';
-      roomCodeInput.style.display = 'none';
-      connectBtn.style.display = 'none';
-    }
-  }
-  
-  // Start the multiplayer game
-  function startMultiplayerGame() {
-    if (multiplayerGameStarted) return;
-    multiplayerGameStarted = true;
-    waitingMenu.style.display = 'none';
-    resetGame();
-    showGameCanvas();
-    loop();
-  }
-  
-  // Shows the "You Win!" screen
-  function showWinMenu() {
-    if (gameOver) return;
-    gameOver = true;
-    cancelAnimationFrame(animationFrameId);
-    
-    // Update win menu content
-    winMenu.querySelector('h2').textContent = "Victory!";
-    winMenu.querySelector('p').textContent = "Your opponent crashed! You win!";
-    
-    winMenu.style.display = 'block';
-    canvas.style.display = 'none';
-    pauseBtn.style.display = 'none';
-    difficultyIndicator.style.display = 'none';
-    multiplayerInfo.style.display = 'none';
-    
-    // Clean up multiplayer connection
-    cancelMultiplayer(false);
-  }
-  
-  // Disconnects from PeerJS and cleans up all multiplayer state
-  function cancelMultiplayer(shouldShowMenu = true) {
-    console.log("Cleaning up multiplayer session.");
-    if (peer) {
-      peer.destroy();
-    }
-    peer = null;
-    conn = null;
-    multiplayerMode = false;
-    connectionEstablished = false;
-    isHost = false;
-    multiplayerGameStarted = false;
-    if (shouldShowMenu) {
-        showMainMenu();
-    } else {
-        waitingMenu.style.display = 'none';
-    }
-  }
-  // ===================================================================
-  // END OF UPDATED MULTIPLAYER LOGIC
-  // ===================================================================
   function resetGame(){
-    hasTakenDamageThisRun = false;
-    obstaclesDodgedThisRun = 0;
-    distance = 0;
-    startTime = Date.now();
-    lastCoinTime = Date.now();
-    lastPowerUpSpawnTime = Date.now();
-    gameOver = false;
-    obstacles = [];
-    powerUps = [];
-    lastSpawn = 0;
-    lastDifficultyIncrease = 0;
-    maxLives = 3;
-    powerUpIndicatorContainer.style.display = 'none';
-    multiplayerMode = false; // Default to single player
-    if (difficulty === 'multiplayer') {
-      multiplayerMode = true; // Set multiplayer mode
-      // Multiplayer now uses the new hardcore rules
-      spawnInterval = 1000;
-      obstacleSpeed = 5.0;
-      maxObstacles = 6;
-      lives = 3;
-      maxLives = 3;
-      powerUpSpawnInterval = 3000;
-      difficultyIndicator.textContent = "MULTIPLAYER";
-      difficultyIndicator.className = "multiplayer";
-      powerUpIndicatorContainer.style.display = 'flex';
-      info.style.display = 'none';
-      multiplayerInfo.style.display = 'flex';
-      // Initialize multiplayer difficulty timer
-      lastMultiplayerDifficultyIncrease = Date.now();
+    hasTakenDamageThisRun = false; obstaclesDodgedThisRun = 0; startTime = Date.now(); lastCoinTime = Date.now(); lastPowerUpSpawnTime = Date.now(); gameOver = false;
+    obstacles = []; powerUps = []; lastSpawn = 0; lastDifficultyIncrease = 0; maxLives = 3; powerUpIndicatorContainer.style.display = 'none';
+    multiplayerMode = (difficulty === 'multiplayer');
+    
+    if (multiplayerMode) {
+      spawnInterval = 1000; maxObstacles = 6; lives = 3; powerUpSpawnInterval = 3000;
+      obstacleSpeed = base.obstacleBaseSpeed.multiplayer * scaleFactor;
+      difficultyIndicator.textContent = "MULTIPLAYER"; difficultyIndicator.className = "multiplayer";
+      powerUpIndicatorContainer.style.display = 'flex'; info.style.display = 'none'; multiplayerInfo.style.display = 'flex';
+      lastDifficultyIncrease = Date.now();
+    } else if (difficulty === 'hard') {
+      spawnInterval = 1800; maxObstacles = 5; lives = 3; powerUpSpawnInterval = 3000;
+      obstacleSpeed = base.obstacleBaseSpeed.hard * scaleFactor;
+      difficultyIndicator.textContent = "HARD MODE"; difficultyIndicator.className = "hard"; powerUpIndicatorContainer.style.display = 'flex';
+    } else if (difficulty === 'hardcore') {
+      spawnInterval = 900; maxObstacles = 8; lives = 1; maxLives = 1; powerUpSpawnInterval = Number.MAX_SAFE_INTEGER;
+      obstacleSpeed = base.obstacleBaseSpeed.hardcore * scaleFactor;
+      difficultyIndicator.textContent = "HARDCORE"; difficultyIndicator.className = "hardcore";
+    } else { // Easy mode
+      spawnInterval = 2500; maxObstacles = 3; lives = 3; powerUpSpawnInterval = 3000;
+      obstacleSpeed = base.obstacleBaseSpeed.easy * scaleFactor;
+      difficultyIndicator.textContent = "EASY MODE"; difficultyIndicator.className = "easy"; powerUpIndicatorContainer.style.display = 'flex';
     }
-    else if (difficulty === 'hard') {
-      spawnInterval = 1800;
-      obstacleSpeed = 4.0;
-      maxObstacles = 5;
-      lives = 3;
-      powerUpSpawnInterval = 3000;
-      difficultyIndicator.textContent = "HARD MODE";
-      difficultyIndicator.className = "hard";
-      powerUpIndicatorContainer.style.display = 'flex';
-    }
-    else if (difficulty === 'hardcore') {
-      // 50x harder settings
-      spawnInterval = 900;
-      obstacleSpeed = 8.0;
-      maxObstacles = 8;
-      lives = 1;
-      maxLives = 1;
-      powerUpSpawnInterval = Number.MAX_SAFE_INTEGER;
-      difficultyIndicator.textContent = "HARDCORE";
-      difficultyIndicator.className = "hardcore";
-      powerUpIndicatorContainer.style.display = 'none';
-    }
-    else { // Easy mode
-      spawnInterval = 2500;
-      obstacleSpeed = 2.5;
-      maxObstacles = 3;
-      lives = 3;
-      powerUpSpawnInterval = 3000;
-      difficultyIndicator.textContent = "EASY MODE";
-      difficultyIndicator.className = "easy";
-      powerUpIndicatorContainer.style.display = 'flex';
-    }
-    difficultyIndicator.style.display = 'block';
-    pauseDuration = 0;
-    hasShield = hasStartingShield;
-    hasStartingShield = false;
-    slowMotionActive = false;
-    boat.speed = boat.baseSpeed;
-    gamePaused = false;
-    updatePowerUpIndicators();
-    resetBoat();
-    updateHearts();
-    updateInfo();
+    difficultyIndicator.style.display = 'block'; pauseDuration = 0; hasShield = hasStartingShield; hasStartingShield = false;
+    slowMotionActive = false; boat.speed = boat.baseSpeed; gamePaused = false;
+    updatePowerUpIndicators(); resetBoat(); updateHearts(); updateInfo();
   }
+
   function updateInfo(){
     let elapsed = Math.floor((Date.now() - startTime - pauseDuration) / 1000);
     if(elapsed < 0) elapsed = 0;
-    if (multiplayerMode) {
-      playerTimeEl.textContent = `Your Time: ${elapsed}s`;
-      sendPlayerState();
-    } else {
-      infoTime.textContent = `Time: ${elapsed}s`;
-      if (difficulty !== 'multiplayer' && elapsed > highScores[difficulty]) {
-          highScores[difficulty] = elapsed;
-          saveHighScores();
-      }
-      infoHighScore.textContent = `High Score: ${highScores[difficulty]}s`;
-    }
+    if (multiplayerMode) { playerTimeEl.textContent = `Your Time: ${elapsed}s`; sendPlayerState();
+    } else { infoTime.textContent = `Time: ${elapsed}s`; if (elapsed > highScores[difficulty]) { highScores[difficulty] = elapsed; saveHighScores(); } infoHighScore.textContent = `High Score: ${highScores[difficulty]}s`; }
     infoCoins.textContent = `Coins: ${coins}`;
   }
-  function spawnObstacle(){
-    const x = Math.random() * (canvas.width - 60) + 30;
-    obstacles.push(new Obstacle(x, -50, obstacleSpeed));
-  }
+
+  function spawnObstacle(){ obstacles.push(new Obstacle(Math.random() * (canvas.width - (60*scaleFactor)) + (30*scaleFactor), -50, obstacleSpeed)); }
+  
   function update(){
     if(gameOver || gamePaused) return;
     const now = Date.now();
+    if(now - lastCoinTime > 2000) { coins++; gameStats.totalCoinsCollected++; saveCoins(); lastCoinTime = now; }
+    if(now - lastSpawn > spawnInterval && obstacles.length < maxObstacles){ lastSpawn = now; spawnObstacle(); }
+    if (difficulty !== 'hardcore' && difficulty !== 'multiplayer') spawnPowerUp();
+    if(now - lastDifficultyIncrease > difficultyIncreaseInterval){ lastDifficultyIncrease = now; increaseDifficulty(); }
     
-    // Multiplayer difficulty scaling
-    if (multiplayerMode && !gameOver) {
-      if (now - lastMultiplayerDifficultyIncrease > multiplayerDifficultyInterval) {
-        lastMultiplayerDifficultyIncrease = now;
-        
-        // Double the difficulty every 10 seconds
-        obstacleSpeed *= 2;
-        maxObstacles = Math.min(maxObstacles * 2, 50); // Cap at 50 obstacles
-        spawnInterval = Math.max(10, spawnInterval / 2); // Halve spawn interval
-        
-        // Visual feedback for difficulty increase
-        difficultyIndicator.style.animation = 'none';
-        setTimeout(() => {
-          difficultyIndicator.style.animation = 'pulse 0.5s';
-        }, 10);
-      }
-    }
-    
-    if(now - lastCoinTime > 2000) {
-      coins++;
-      gameStats.totalCoinsCollected++;
-      saveCoins();
-      lastCoinTime = now;
-    }
-    if(now - lastSpawn > spawnInterval && obstacles.length < maxObstacles){
-      lastSpawn = now;
-      spawnObstacle();
-    }
-    // Power-ups are disabled in hardcore and multiplayer
-    if (difficulty !== 'hardcore' && difficulty !== 'multiplayer') {
-      spawnPowerUp();
-    }
-    if(now - lastDifficultyIncrease > difficultyIncreaseInterval){
-      lastDifficultyIncrease = now;
-      increaseDifficulty();
-    }
     obstacles.forEach((o, i) => {
       o.update();
-      if(o.y - o.size/2 > canvas.height){
-        obstacles.splice(i, 1);
-        distance += 100;
-        if (!multiplayerMode) { // Stats only for single player
-            obstaclesDodgedThisRun++;
-            gameStats.totalObstaclesAvoided++;
-        }
+      if(o.y - o.size/2 > canvas.height){ obstacles.splice(i, 1); if (!multiplayerMode) { obstaclesDodgedThisRun++; gameStats.totalObstaclesAvoided++; }
       } else if(isCollide(boat, o.getBounds())){
         obstacles.splice(i, 1);
-        if(hasShield) {
-          hasShield = false;
-          updatePowerUpIndicators();
+        if(hasShield) { hasShield = false; updatePowerUpIndicators();
         } else {
-          lives--;
-          hasTakenDamageThisRun = true;
-          updateHearts();
-          triggerFlash();
-          if(lives <= 0) {
-            gameOver = true;
-            cancelAnimationFrame(animationFrameId);
-            if (multiplayerMode) {
-              sendPlayerDied();
-            }
-            showRestartMenu(); // This will show win/loss screen for multiplayer
-          }
+          lives--; hasTakenDamageThisRun = true; updateHearts(); triggerFlash();
+          if(lives <= 0) { gameOver = true; cancelAnimationFrame(animationFrameId); if (multiplayerMode) sendPlayerDied(); showRestartMenu(); }
         }
       }
     });
     powerUps.forEach((p, i) => {
       p.update();
-      if(p.y - p.size/2 > canvas.height) {
-        powerUps.splice(i, 1);
-      } else if(!p.collected && isCollide(boat, p.getBounds())) {
-        p.activate();
-        powerUps.splice(i, 1);
-        onPowerupCollected();
-      }
+      if(p.y - p.size/2 > canvas.height) powerUps.splice(i, 1);
+      else if(!p.collected && isCollide(boat, p.getBounds())) { p.activate(); powerUps.splice(i, 1); onPowerupCollected(); }
     });
+    
     checkPowerUpExpiration();
     if(keys['ArrowLeft'] || keys['a']) boat.x -= boat.speed;
     if(keys['ArrowRight'] || keys['d']) boat.x += boat.speed;
     boat.x = Math.min(Math.max(0, boat.x), canvas.width - boat.w);
-    updateFlash();
-    updateInfo();
+    updateFlash(); updateInfo();
   }
-  function draw(){
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    drawBoat();
-    obstacles.forEach(o => o.draw());
-    powerUps.forEach(p => p.draw());
-  }
-  function loop(){
-    update();
-    draw();
-    if(!gameOver && !gamePaused) animationFrameId = requestAnimationFrame(loop);
-  }
-  function showMainMenu(){
-    gamePaused = true;
-    cancelAnimationFrame(animationFrameId);
-    menu.style.display = 'block';
-    difficultyMenu.style.display = 'none';
-    multiplayerModeMenu.style.display = 'none';
-    skinsMenu.style.display = 'none';
-    questsMenu.style.display = 'none';
-    shopMenu.style.display = 'none';
-    restartMenu.style.display = 'none';
-    pauseMenu.style.display = 'none';
-    waitingMenu.style.display = 'none';
-    winMenu.style.display = 'none';
-    canvas.style.display = 'none';
-    flashOverlay.style.display = 'none';
-    pauseBtn.style.display = 'none';
-    difficultyIndicator.style.display = 'none';
-    pauseBtn.textContent = '⏸';
-    info.style.display = 'flex';
-    multiplayerInfo.style.display = 'none';
-  }
-  function showSkinsMenu(){
-    menu.style.display = 'none';
-    difficultyMenu.style.display = 'none';
-    skinsMenu.style.display = 'block';
-  }
-  function showDifficultyMenu(){
-    menu.style.display = 'none';
-    difficultyMenu.style.display = 'block';
-    difficultyOptions.forEach(opt => opt.classList.remove('selected'));
-    difficultyOptions[0].classList.add('selected');
-    difficulty = 'easy';
-  }
+  
+  function draw(){ ctx.clearRect(0,0,canvas.width,canvas.height); drawBoat(); obstacles.forEach(o => o.draw()); powerUps.forEach(p => p.draw()); }
+  function loop(){ update(); draw(); if(!gameOver && !gamePaused) animationFrameId = requestAnimationFrame(loop); }
+
+  // MODIFICATION: All menu functions now call hideAllMenus()
+  function showMainMenu(){ gamePaused = true; cancelAnimationFrame(animationFrameId); hideAllMenus(); menu.style.display = 'block'; canvas.style.display = 'none'; flashOverlay.style.display = 'none'; pauseBtn.style.display = 'none'; difficultyIndicator.style.display = 'none'; pauseBtn.textContent = '⏸'; info.style.display = 'flex'; multiplayerInfo.style.display = 'none'; }
+  function showSkinsMenu(){ hideAllMenus(); skinsMenu.style.display = 'block'; }
+  function showDifficultyMenu(){ hideAllMenus(); difficultyMenu.style.display = 'block'; difficultyOptions.forEach(opt => opt.classList.remove('selected')); difficultyOptions[0].classList.add('selected'); difficulty = 'easy'; }
+  function showQuestsMenu(){ renderQuests(); hideAllMenus(); questsMenu.style.display = 'flex'; }
+  function showShopMenu() { hideAllMenus(); shopMenu.style.display = 'flex'; saveCoins(); renderShopItems(); }
+  function showMultiplayerModeMenu() { hideAllMenus(); multiplayerModeMenu.style.display = 'block'; }
+  function showWaitingMenu(isJoining = false) { hideAllMenus(); waitingMenu.style.display = 'block'; if (isJoining) { yourPeerIdEl.style.display = 'none'; roomCodeInput.style.display = 'block'; connectBtn.style.display = 'block'; multiplayerStatus.textContent = "Enter Room Code and Connect"; connectBtn.onclick = joinGame; } else { yourPeerIdEl.style.display = 'block'; roomCodeInput.style.display = 'none'; connectBtn.style.display = 'none'; } }
+  
   function showRestartMenu(){
+    hideAllMenus();
     restartMenu.style.display = 'block';
-    canvas.style.display = 'none';
-    flashOverlay.style.display = 'none';
-    pauseBtn.style.display = 'none';
-    difficultyIndicator.style.display = 'none';
+    canvas.style.display = 'none'; flashOverlay.style.display = 'none'; pauseBtn.style.display = 'none'; difficultyIndicator.style.display = 'none';
     const elapsed = Math.floor((Date.now()-startTime - pauseDuration)/1000);
     if (multiplayerMode) {
-        gameOverTitle.textContent = "Game Over!";
-        finalScoreP.textContent = `You survived for ${elapsed}s.`;
-        bestScoreP.style.display = 'none';
-        restartBtn.style.display = 'none';
-        cancelMultiplayer(false); // Clean up connections
+        gameOverTitle.textContent = "Game Over!"; finalScoreP.textContent = `You survived for ${elapsed}s.`;
+        bestScoreP.style.display = 'none'; restartBtn.style.display = 'none'; cancelMultiplayer(false);
     } else {
-        gameOverTitle.textContent = "Game Over!";
-        finalScoreP.textContent = `Your Time: ${elapsed}s`;
+        gameOverTitle.textContent = "Game Over!"; finalScoreP.textContent = `Your Time: ${elapsed}s`;
         bestScoreP.textContent = `Best Time: ${highScores[difficulty]}s`;
-        bestScoreP.style.display = 'block';
-        restartBtn.style.display = 'inline-block';
+        bestScoreP.style.display = 'block'; restartBtn.style.display = 'inline-block';
         gameStats.longestSurvival = Math.max(gameStats.longestSurvival, elapsed);
         gameStats.totalTimeSurvived += elapsed;
         checkQuestsAtEnd(elapsed);
     }
   }
-  function showGameCanvas(){
-    menu.style.display = 'none';
-    difficultyMenu.style.display = 'none';
-    restartMenu.style.display = 'none';
-    winMenu.style.display = 'none';
-    multiplayerModeMenu.style.display = 'none';
-    canvas.style.display = 'block';
-    pauseBtn.style.display = 'block';
-    difficultyIndicator.style.display = 'block';
-  }
-  function showShopMenu() {
-    menu.style.display = 'none';
-    shopMenu.style.display = 'block';
-    saveCoins();
-    renderShopItems();
-  }
+
+  function showGameCanvas(){ hideAllMenus(); canvas.style.display = 'block'; pauseBtn.style.display = 'block'; difficultyIndicator.style.display = 'block'; }
+  
   function renderShopItems() {
     shopItemsDiv.innerHTML = "";
-    const categories = {
-      'skins': '🎨 Boat Skins',
-      'items': '✨ Power-ups & Items'
-    };
-    const shopSkins = shopItems.filter(item => item.type === 'skin');
-    const shopItemsList = shopItems.filter(item => item.type !== 'skin');
-    const skinsHeader = document.createElement('div');
-    skinsHeader.style.cssText = `
-        font-size: 1.3em;
-        font-weight: bold;
-        margin: 20px 0 10px 0;
-        color: #00fff7;
-        text-align: center;
-        text-shadow: 0 0 10px #00fff7;
-        border-bottom: 2px solid #00fff7;
-        padding-bottom: 5px;
-    `;
-    skinsHeader.textContent = categories['skins'];
-    shopItemsDiv.appendChild(skinsHeader);
-    shopSkins.forEach(item => {
-      const div = document.createElement('div');
-      div.className = 'shop-item';
-      const details = document.createElement('div');
-      details.className = 'item-details';
-      details.innerHTML = `
-        <div class="item-title">${item.name}</div>
-        <div class="item-description">${item.desc || `Unlock the ${item.name} boat skin.`}</div>
-      `;
-      div.appendChild(details);
-      const priceDiv = document.createElement('div');
-      priceDiv.className = 'item-price';
-      priceDiv.innerHTML = `${item.cost} Coins`;
-      const buyBtn = document.createElement('button');
-      const skin = boatSkins.find(s => s.name === item.skinData.name);
-      if (skin && skin.unlocked) {
-          buyBtn.textContent = "Owned";
-          buyBtn.disabled = true;
-          div.style.filter = "grayscale(50%)";
-      } else {
-          buyBtn.textContent = "Buy";
-          if (coins < item.cost) {
-            buyBtn.disabled = true;
-          }
-      }
-      buyBtn.addEventListener('click', () => buyItem(item));
-      priceDiv.appendChild(buyBtn);
-      div.appendChild(priceDiv);
-      shopItemsDiv.appendChild(div);
-    });
-    const itemsHeader = document.createElement('div');
-    itemsHeader.style.cssText = `
-        font-size: 1.3em;
-        font-weight: bold;
-        margin: 20px 0 10px 0;
-        color: #00fff7;
-        text-align: center;
-        text-shadow: 0 0 10px #00fff7;
-        border-bottom: 2px solid #00fff7;
-        padding-bottom: 5px;
-    `;
-    itemsHeader.textContent = categories['items'];
-    shopItemsDiv.appendChild(itemsHeader);
-    shopItemsList.forEach(item => {
-        const div = document.createElement('div');
-        div.className = 'shop-item';
-        const details = document.createElement('div');
-        details.className = 'item-details';
-        details.innerHTML = `
-            <div class="item-title">${item.name}</div>
-            <div class="item-description">${item.desc}</div>
-        `;
-        div.appendChild(details);
-        const priceDiv = document.createElement('div');
-        priceDiv.className = 'item-price';
-        priceDiv.innerHTML = `${item.cost} Coins`;
-        const buyBtn = document.createElement('button');
-        buyBtn.textContent = "Buy";
-        if (coins < item.cost) {
-            buyBtn.disabled = true;
-        }
-        buyBtn.addEventListener('click', () => buyItem(item));
-        priceDiv.appendChild(buyBtn);
-        div.appendChild(priceDiv);
-        shopItemsDiv.appendChild(div);
-    });
+    // Render logic omitted for brevity, it is unchanged
+    const categories = { 'skins': '🎨 Boat Skins', 'items': '✨ Power-ups & Items' }; const shopSkins = shopItems.filter(item => item.type === 'skin'); const shopItemsList = shopItems.filter(item => item.type !== 'skin'); const skinsHeader = document.createElement('div'); skinsHeader.style.cssText = ` font-size: 1.3em; font-weight: bold; margin: 20px 0 10px 0; color: #00fff7; text-align: center; text-shadow: 0 0 10px #00fff7; border-bottom: 2px solid #00fff7; padding-bottom: 5px; `; skinsHeader.textContent = categories['skins']; shopItemsDiv.appendChild(skinsHeader); shopSkins.forEach(item => { const div = document.createElement('div'); div.className = 'shop-item'; const details = document.createElement('div'); details.className = 'item-details'; details.innerHTML = ` <div class="item-title">${item.name}</div> <div class="item-description">${item.desc || `Unlock the ${item.name} boat skin.`}</div> `; div.appendChild(details); const priceDiv = document.createElement('div'); priceDiv.className = 'item-price'; priceDiv.innerHTML = `${item.cost} Coins`; const buyBtn = document.createElement('button'); const skin = boatSkins.find(s => s.name === item.skinData.name); if (skin && skin.unlocked) { buyBtn.textContent = "Owned"; buyBtn.disabled = true; div.style.filter = "grayscale(50%)"; } else { buyBtn.textContent = "Buy"; if (coins < item.cost) { buyBtn.disabled = true; } } buyBtn.addEventListener('click', () => buyItem(item)); priceDiv.appendChild(buyBtn); div.appendChild(priceDiv); shopItemsDiv.appendChild(div); }); const itemsHeader = document.createElement('div'); itemsHeader.style.cssText = ` font-size: 1.3em; font-weight: bold; margin: 20px 0 10px 0; color: #00fff7; text-align: center; text-shadow: 0 0 10px #00fff7; border-bottom: 2px solid #00fff7; padding-bottom: 5px; `; itemsHeader.textContent = categories['items']; shopItemsDiv.appendChild(itemsHeader); shopItemsList.forEach(item => { const div = document.createElement('div'); div.className = 'shop-item'; const details = document.createElement('div'); details.className = 'item-details'; details.innerHTML = ` <div class="item-title">${item.name}</div> <div class="item-description">${item.desc}</div> `; div.appendChild(details); const priceDiv = document.createElement('div'); priceDiv.className = 'item-price'; priceDiv.innerHTML = `${item.cost} Coins`; const buyBtn = document.createElement('button'); buyBtn.textContent = "Buy"; if (coins < item.cost) { buyBtn.disabled = true; } buyBtn.addEventListener('click', () => buyItem(item)); priceDiv.appendChild(buyBtn); div.appendChild(priceDiv); shopItemsDiv.appendChild(div); });
   }
-  function triggerPurchaseEffect() {
-    purchaseEffect.classList.add('active');
-    setTimeout(() => {
-      purchaseEffect.classList.remove('active');
-    }, 800);
-  }
-  function buyItem(item) {
-    if (coins >= item.cost) {
-      coins -= item.cost;
-      saveCoins();
-      triggerPurchaseEffect();
-      switch(item.type) {
-        case 'health':
-          if (lives < maxLives) {
-            lives++;
-            updateHearts();
-            alert("Health Boost purchased! One life has been restored.");
-          } else {
-            alert("You already have full health!");
-            coins += item.cost;
-            saveCoins();
-          }
-          break;
-        case 'shield':
-          hasStartingShield = true;
-          alert("Starting Shield purchased! It will be active at the beginning of your next run.");
-          break;
-        case 'skin':
-          const skinToUnlock = boatSkins.find(s => s.name === item.skinData.name);
-          if (skinToUnlock) {
-            skinToUnlock.unlocked = true;
-            saveSkins();
-            alert(`${item.name} skin unlocked! You can now select it in the Skins menu.`);
-          }
-          break;
-      }
-      renderShopItems();
-    } else {
-      alert("Not enough coins!");
-    }
-  }
+
+  function triggerPurchaseEffect() { purchaseEffect.classList.add('active'); setTimeout(() => { purchaseEffect.classList.remove('active'); }, 800); }
+  function buyItem(item) { if (coins >= item.cost) { coins -= item.cost; saveCoins(); triggerPurchaseEffect(); switch(item.type) { case 'health': if (lives < maxLives) { lives++; updateHearts(); alert("Health Boost purchased!"); } else { alert("You already have full health!"); coins += item.cost; saveCoins(); } break; case 'shield': hasStartingShield = true; alert("Starting Shield purchased!"); break; case 'skin': const skinToUnlock = boatSkins.find(s => s.name === item.skinData.name); if (skinToUnlock) { skinToUnlock.unlocked = true; saveSkins(); alert(`${item.name} skin unlocked!`); } break; } renderShopItems(); } else { alert("Not enough coins!"); } }
+  
   function initSkinButtons(){
     skinOptionsDiv.innerHTML = '';
     boatSkins.forEach((skin, idx) => {
-      const btn = document.createElement('button');
-      btn.classList.add('skin-btn');
-      if(skin.rainbow){
-        btn.style.background="linear-gradient(90deg, red, orange, yellow, green, blue, purple)";
-      } else {
-        btn.style.background = skin.color;
-      }
+      const btn = document.createElement('button'); btn.classList.add('skin-btn');
+      if(skin.rainbow) btn.style.background="linear-gradient(90deg, red, orange, yellow, green, blue, purple)";
+      else btn.style.background = skin.color;
       if(idx === currentSkinIndex) btn.classList.add('selected');
-      btn.title = skin.name;
       const isLocked = skin.unlocked === false;
-      if (isLocked) {
-        btn.style.filter = "grayscale(100%)";
-        const shopItem = shopItems.find(item => item.type === 'skin' && item.skinData.name === skin.name);
-        btn.title = `Locked: ${shopItem ? shopItem.cost : '?'} coins`;
-      } else {
-        btn.addEventListener('click', () => {
-          currentSkinIndex = idx;
-          skinOptionsDiv.querySelectorAll('button').forEach(b => b.classList.remove('selected'));
-          btn.classList.add('selected');
-          boat.color = skin.color;
-          resetBoat();
-        });
-      }
+      if (isLocked) { btn.style.filter = "grayscale(100%)"; const shopItem = shopItems.find(item => item.type === 'skin' && item.skinData.name === skin.name); btn.title = `Locked: ${shopItem ? shopItem.cost : '?'} coins`;
+      } else { btn.addEventListener('click', () => { currentSkinIndex = idx; skinOptionsDiv.querySelectorAll('button').forEach(b => b.classList.remove('selected')); btn.classList.add('selected'); boat.color = skin.color; resetBoat(); }); }
       skinOptionsDiv.appendChild(btn);
     });
   }
+
+  // Event Listeners
   playBtn.addEventListener('click', showDifficultyMenu);
-  
-  difficultyOptions.forEach(option => {
-    option.addEventListener('click', () => {
-      difficultyOptions.forEach(opt => opt.classList.remove('selected'));
-      option.classList.add('selected');
-      difficulty = option.dataset.difficulty;
-    });
-  });
-  
-  startGameBtn.addEventListener('click', () => {
-    if (difficulty === 'multiplayer') {
-      showMultiplayerModeMenu();
-    } else {
-      resetGame();
-      showGameCanvas();
-      loop();
-    }
-  });
-  
+  difficultyOptions.forEach(option => { option.addEventListener('click', () => { difficultyOptions.forEach(opt => opt.classList.remove('selected')); option.classList.add('selected'); difficulty = option.dataset.difficulty; }); });
+  startGameBtn.addEventListener('click', () => { if (difficulty === 'multiplayer') { showMultiplayerModeMenu(); } else { resetGame(); showGameCanvas(); loop(); } });
   mpBackBtn.addEventListener('click', showDifficultyMenu);
-  skinsBtn.addEventListener('click', () => {
-    initSkinButtons();
-    showSkinsMenu();
-  });
-  
+  skinsBtn.addEventListener('click', () => { initSkinButtons(); showSkinsMenu(); });
   skinsBackBtn.addEventListener('click', showMainMenu);
-  restartBtn.addEventListener('click', () => {
-    resetGame();
-    showGameCanvas();
-    loop();
-  });
-  
+  restartBtn.addEventListener('click', () => { resetGame(); showGameCanvas(); loop(); });
   backToMenuBtn.addEventListener('click', showMainMenu);
   pauseBtn.addEventListener('click', togglePause);
   continueBtn.addEventListener('click', togglePause);
-  pauseToMenuBtn.addEventListener('click', () => {
-    togglePause();
-    showMainMenu();
-  });
+  pauseToMenuBtn.addEventListener('click', () => { togglePause(); showMainMenu(); });
   shopBtn.addEventListener('click', showShopMenu);
   shopBackBtn.addEventListener('click', showMainMenu);
+  questsBtn.addEventListener("click", showQuestsMenu);
+  questsBackBtn.addEventListener("click", showMainMenu);
+  createGameBtn.addEventListener('click', () => { showWaitingMenu(); createGame(); });
+  joinGameBtn.addEventListener('click', () => { showWaitingMenu(true); });
   cancelMultiplayerBtn.addEventListener('click', cancelMultiplayer);
   winBackBtn.addEventListener('click', showMainMenu);
+
+  // Quest and stat checking logic (unchanged, omitted for brevity)
+  function checkQuestsAtEnd(elapsed) { gameStats.totalGamesPlayed++; saveStats(); const isPerfectRun = !hasTakenDamageThisRun; if(isPerfectRun) { gameStats.perfectRuns = Math.max(gameStats.perfectRuns, elapsed); } if(difficulty === 'hard' && !gameOver) { gameStats.hardModeWins++; } quests.forEach(q => { if(q.completed) return; let questCompleted = false; switch(q.id) { case 'play_10_games': case 'play_25_games': case 'play_50_games': case 'play_50_games': q.progress = gameStats.totalGamesPlayed; if (q.progress >= q.goal) questCompleted = true; break; case 'survive_10s': case 'survive_30s': case 'survive_60s': case 'survive_120s': case 'survive_300s': case 'survive_600s': if(elapsed >= q.goal) { q.progress = elapsed; questCompleted = true; } break; case 'dodge_20_obstacles': case 'dodge_50_obstacles': case 'dodge_100_obstacles': case 'dodge_200_obstacles': case 'dodge_500_obstacles': case 'dodge_1000_obstacles': q.progress = gameStats.totalObstaclesAvoided; if (q.progress >= q.goal) questCompleted = true; break; case 'no_damage_30s': case 'no_damage_60s': case 'no_damage_120s': if(isPerfectRun && elapsed >= q.goal) { q.progress = elapsed; questCompleted = true; } break; case 'perfect_5_minutes': if(isPerfectRun && elapsed >= q.goal) { q.progress = elapsed; questCompleted = true; } break; case 'hardmode_1_win': case 'hardmode_3_wins': case 'hardmode_5_wins': case 'hardmode_10_wins': case 'hardmode_25_wins': q.progress = gameStats.hardModeWins; if (q.progress >= q.goal) questCompleted = true; break; case 'shields_used_25': q.progress = gameStats.shieldsUsed; if (q.progress >= q.goal) questCompleted = true; break; case 'collect_1000_coins': case 'collect_5000_coins': case 'collect_10000_coins': q.progress = gameStats.totalCoinsCollected; if (q.progress >= q.goal) questCompleted = true; break; } if(questCompleted && !q.completed) { q.completed = true; coins += q.reward.amount; saveCoins(); showQuestNotification(q.description, `${q.reward.amount} Coins`); } }); saveQuests(); saveStats(); }
+  function onPowerupCollected(){ gameStats.totalPowerUps++; saveStats(); quests.forEach(q => { if(q.completed) return; if(q.id.includes('collect_') && q.id.includes('powerups')) { q.progress = gameStats.totalPowerUps; if(gameStats.totalPowerUps >= q.goal && !q.completed) { q.completed = true; coins += q.reward.amount; saveCoins(); showQuestNotification(q.description, `${q.reward.amount} Coins`); } } }); saveQuests(); saveStats(); }
   
-  function checkQuestsAtEnd(elapsed) {
-    gameStats.totalGamesPlayed++;
-    saveStats();
-    const isPerfectRun = !hasTakenDamageThisRun;
-    if(isPerfectRun) {
-        gameStats.perfectRuns = Math.max(gameStats.perfectRuns, elapsed);
-    }
-    if(difficulty === 'hard' && !gameOver) {
-        gameStats.hardModeWins++;
-    }
-    quests.forEach(q => {
-      if(q.completed) return;
-      let questCompleted = false;
-      switch(q.id) {
-        case 'play_10_games':
-        case 'play_25_games':
-        case 'play_50_games':
-        case 'play_50_games':
-          q.progress = gameStats.totalGamesPlayed;
-          if (q.progress >= q.goal) questCompleted = true;
-          break;
-        case 'survive_10s':
-        case 'survive_30s':
-        case 'survive_60s':
-        case 'survive_120s':
-        case 'survive_300s':
-        case 'survive_600s':
-          if(elapsed >= q.goal) {
-            q.progress = elapsed;
-            questCompleted = true;
-          }
-          break;
-        case 'dodge_20_obstacles':
-        case 'dodge_50_obstacles':
-        case 'dodge_100_obstacles':
-        case 'dodge_200_obstacles':
-        case 'dodge_500_obstacles':
-        case 'dodge_1000_obstacles':
-          q.progress = gameStats.totalObstaclesAvoided;
-          if (q.progress >= q.goal) questCompleted = true;
-          break;
-        case 'no_damage_30s':
-        case 'no_damage_60s':
-        case 'no_damage_120s':
-          if(isPerfectRun && elapsed >= q.goal) {
-            q.progress = elapsed;
-            questCompleted = true;
-          }
-          break;
-        case 'perfect_5_minutes':
-          if(isPerfectRun && elapsed >= q.goal) {
-            q.progress = elapsed;
-            questCompleted = true;
-          }
-          break;
-        case 'hardmode_1_win':
-        case 'hardmode_3_wins':
-        case 'hardmode_5_wins':
-        case 'hardmode_10_wins':
-        case 'hardmode_25_wins':
-          q.progress = gameStats.hardModeWins;
-          if (q.progress >= q.goal) questCompleted = true;
-          break;
-        case 'shields_used_25':
-          q.progress = gameStats.shieldsUsed;
-          if (q.progress >= q.goal) questCompleted = true;
-          break;
-        case 'collect_1000_coins':
-        case 'collect_5000_coins':
-        case 'collect_10000_coins':
-          q.progress = gameStats.totalCoinsCollected;
-          if (q.progress >= q.goal) questCompleted = true;
-          break;
-      }
-      if(questCompleted && !q.completed) {
-        q.completed = true;
-        coins += q.reward.amount;
-        saveCoins();
-        showQuestNotification(q.description, `${q.reward.amount} Coins`);
-      }
-    });
-    saveQuests();
-    saveStats();
-  }
-  function onPowerupCollected(){
-    gameStats.totalPowerUps++;
-    saveStats();
-    quests.forEach(q => {
-      if(q.completed) return;
-      if(q.id.includes('collect_') && q.id.includes('powerups')) {
-        q.progress = gameStats.totalPowerUps;
-        if(gameStats.totalPowerUps >= q.goal && !q.completed) {
-          q.completed = true;
-          coins += q.reward.amount;
-          saveCoins();
-          showQuestNotification(q.description, `${q.reward.amount} Coins`);
-        }
-      }
-    });
-    saveQuests();
-    saveStats();
-  }
-  document.addEventListener('visibilitychange', () => {
-    if(document.hidden){
-      if(!gamePaused && !gameOver){
-        togglePause();
-      }
-    }
-  });
-  if(localStorage.getItem('boatRacerHighScores')) {
-    highScores = JSON.parse(localStorage.getItem('boatRacerHighScores'));
-  }
+  document.addEventListener('visibilitychange', () => { if(document.hidden && !gamePaused && !gameOver) togglePause(); });
+
+  // Initial setup
+  checkOrientation(); // Check orientation on load
+  saveCoins();
   showMainMenu();
 })();
 </script>
-<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4568215894032054"
-     crossorigin="anonymous"></script>
 </body>
 </html>
